@@ -1,6 +1,6 @@
 # ViZDoom
 _vizdoom/
-_vizdoom.ini
+**/_vizdoom.ini
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
