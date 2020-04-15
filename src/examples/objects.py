@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 
-from __future__ import print_function
-
 from random import choice
 import vizdoom as vzd
 from argparse import ArgumentParser
-import matplotlib.pyplot as plt
 import os
 
-DEFAULT_CONFIG = os.path.join(vzd.scenarios_path, "my_way_home.cfg")
+import matplotlib.pyplot as plt
+
+def print_all(obj):
+    d = {}
+    for attr in dir(obj):
+        if attr.startswith('_'):
+            continue
+
+        d[attr] = getattr(obj, attr)
+
+    print(type(obj).__name__, d)
+
+def print_iter(iterable):
+    print('[')
+    for x in iterable:
+        print_all(x)
+
+    print(']')
+
+
+DEFAULT_CONFIG = os.path.join(vzd.scenarios_path, "basic.cfg")
 if __name__ =="__main__":
     parser = ArgumentParser("ViZDoom example showing how to use information about objects and map.")
     parser.add_argument(dest="config",
@@ -33,6 +50,8 @@ if __name__ =="__main__":
     # Enables information about all sectors (map layout).
     game.set_sectors_info_enabled(True)
 
+    game.set_labels_buffer_enabled(True)
+
     game.clear_available_game_variables()
     game.add_available_game_variable(vzd.GameVariable.POSITION_X)
     game.add_available_game_variable(vzd.GameVariable.POSITION_Y)
@@ -51,46 +70,16 @@ if __name__ =="__main__":
         # Not needed for the first episode but the loop is nicer.
         game.new_episode()
         while not game.is_episode_finished():
-
             # Gets the state
             state = game.get_state()
             game.make_action(choice(actions))
 
-            print("State #" + str(state.number))
-            print("Player position X:", state.game_variables[0], "Y:", state.game_variables[1], "Z:", state.game_variables[2])
-            print("Objects:")
-
-            # Print information about objects present in the episode.
-            for o in state.objects:
-                print("Object name:", o.name)
-                print("Object position x:", o.position_x, "y:", o.position_y, "z:", o.position_z)
-
-                # Other available fields:
-                #print("Object rotation angle", o.angle, "pitch:", o.pitch, "roll:", o.roll)
-                #print("Object velocity x:", o.velocity_x, "y:", o.velocity_y, "z:", o.velocity_z)
-
-                # Plot object on map
-                if o.name == "DoomPlayer":
-                    plt.plot(o.position_x, o.position_y, color='green', marker='o')
-                else:
-                    plt.plot(o.position_x, o.position_y, color='red', marker='o')
-
-            print("=====================")
-
-            print("Sectors:")
-
-            # Print information about sectors.
-            for s in state.sectors:
-                print("Sector floor height:", s.floor_height, "ceiling height:", s.ceiling_height)
-                print("Sector lines:", [(l.x1, l.y1, l.x2, l.y2, l.is_blocking) for l in s.lines])
-
-                # Plot sector on map
-                for l in s.lines:
-                    if l.is_blocking:
-                        plt.plot([l.x1, l.x2], [l.y1, l.y2], color='black', linewidth=2)
-
-            # Show map
+            print_iter(state.objects)
+            print_iter(state.labels)
+            print(state.labels_buffer.shape)
+            plt.imshow(state.labels_buffer)
             plt.show()
+
 
         print("Episode finished!")
 
