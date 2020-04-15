@@ -9,9 +9,9 @@ game = DoomGame()
 game.load_config(os.path.join(scenarios_path, "basic.cfg"))
 game.init()
 
-shoot = [0, 0, 1]
-left = [1, 0, 0]
-right = [0, 1, 0]
+shoot = [False, False, True]
+left = [True, False, False]
+right = [False, True, False]
 actions = [shoot, left, right]
 
 episodes = 10
