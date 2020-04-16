@@ -2,6 +2,9 @@
 
 import vizdoom as vzd
 
+from game_variables import game_variables
+from serialize import Saver
+
 from tqdm import tqdm
 import random
 import pickle
@@ -21,10 +24,17 @@ if __name__ == '__main__':
     parser.add_argument('episodes',
                         default=10,
                         type=int)
+    parser.add_argument('--record_lmp',
+                        dest='record_lmp',
+                        action='store_true')
+    parser.set_defaults(record_lmp=False)
 
     args = parser.parse_args()
 
     args.out_dir.mkdir(exist_ok=True, parents=True)
+    if args.record_lmp:
+        lmp_dir = out_dir.joinpath('lmp')
+        lmp_dir.mkdir()
 
     game = vzd.DoomGame()
 
@@ -33,6 +43,10 @@ if __name__ == '__main__':
     game.set_render_hud(False)
     game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
 
+    # Episodes can be recorded in any available mode (PLAYER, ASYNC_PLAYER, SPECTATOR, ASYNC_SPECTATOR)
+    game.set_mode(vzd.Mode.PLAYER)
+    game.set_window_visible(False)
+
     # Enables information about all objects present in the current episode/level.
     game.set_objects_info_enabled(True)
     # Enables segmentation maps for all objects.
@@ -40,8 +54,11 @@ if __name__ == '__main__':
     # Enables information about all sectors (map layout).
     game.set_sectors_info_enabled(True)
 
+    game.set_depth_buffer_enabled(True)
+    game.set_automap_buffer_enabled(True)
+
     # Set all game variables
-    game.set_available_game_variables(game.get_available_game_variables())
+    game.set_available_game_variables(game_variables)
 
     game.init()
 
@@ -50,11 +67,20 @@ if __name__ == '__main__':
     shoot = [False, False, True]
     actions = [left, right, shoot]
 
+    saver = Saver(game)
+
     for i in tqdm(range(args.episodes)):
-        recpath = args.out_dir.joinpath(f'episode_{i}.lmp')
-        game.new_episode(str(recpath))
+        if args.record_lmp:
+            recpath = args.out_dir.joinpath(f'episode_{i}.lmp')
+            game.new_episode(str(recpath))
+        else:
+            game.new_episode()
+
         while not game.is_episode_finished():
             state = game.get_state()
+
+            saver.add(state)
             game.make_action(random.choice(actions))
 
+    saver.save(args.out_dir.joinpath('states.npy'))
     game.close()
