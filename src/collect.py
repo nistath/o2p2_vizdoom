@@ -4,23 +4,27 @@ import vizdoom as vzd
 
 from tqdm import tqdm
 import random
+import pickle
 from argparse import ArgumentParser
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-DEFAULT_CONFIG = str(Path(vzd.scenarios_path).joinpath("basic.cfg"))
-if __name__ == "__main__":
-    parser = ArgumentParser("Collect experience.")
-    parser.add_argument("--config",
+DEFAULT_CONFIG = str(Path(vzd.scenarios_path).joinpath('basic.cfg'))
+if __name__ == '__main__':
+    parser = ArgumentParser('Collect experience.')
+    parser.add_argument('--config',
                         default=DEFAULT_CONFIG,
-                        nargs="?",
                         type=str,
-                        help="Path to the configuration file of the scenario.")
-    parser.add_argument("episodes",
+                        help='Path to the configuration file of the scenario.')
+    parser.add_argument('out_dir',
+                        type=Path)
+    parser.add_argument('episodes',
                         default=10,
                         type=int)
 
     args = parser.parse_args()
+
+    args.out_dir.mkdir(exist_ok=True, parents=True)
 
     game = vzd.DoomGame()
 
@@ -47,9 +51,9 @@ if __name__ == "__main__":
     actions = [left, right, shoot]
 
     for i in tqdm(range(args.episodes)):
-        game.new_episode()
+        recpath = args.out_dir.joinpath(f'episode_{i}.lmp')
+        game.new_episode(str(recpath))
         while not game.is_episode_finished():
-            # Gets the state
             state = game.get_state()
             game.make_action(random.choice(actions))
 
