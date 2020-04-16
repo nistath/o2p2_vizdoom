@@ -45,8 +45,7 @@ class Saver:
         self.dtype = [
             ('number', np.int),
             ('tic', np.int),
-            ('game_variables', np.double, len(game.get_available_game_variables())),
-            # ('game_variables', game_variables_dtype),
+            ('game_variables', game_variables_dtype, (1,)),
             ('screen_buffer', np.uint8, (3,) + buffer_shape),
         ]
 
@@ -75,7 +74,7 @@ class Saver:
 
     def add(self, state):
         array = [state.number, state.tic,
-                 state.game_variables, state.screen_buffer]
+                 tuple(state.game_variables), state.screen_buffer]
         if self.is_depth_buffer_enabled:
             array.append(state.depth_buffer)
         if self.is_labels_buffer_enabled:
@@ -93,6 +92,3 @@ class Saver:
         stack = np.vstack(self.states)
         np.save(filename, stack)
 
-
-if __name__ == '__main__':
-    print(list(lmps_to_dataset(['/home/nistath/Desktop/run1/episode_1.lmp'])))
