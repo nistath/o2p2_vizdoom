@@ -79,8 +79,8 @@ if __name__ == '__main__':
         while not game.is_episode_finished():
             state = game.get_state()
 
-            saver.add(state)
+            saver.add(state, i)
             game.make_action(random.choice(actions))
 
-    saver.save(args.out_dir.joinpath('states.npy'))
+    saver.save(args.out_dir.joinpath('states.npz'), False)
     game.close()

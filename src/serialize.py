@@ -2,7 +2,7 @@ import vizdoom as vzd
 
 import numpy as np
 from pathlib import Path
-
+from collections import defaultdict
 
 def lmps_to_dataset(lmp_paths):
     game = vzd.DoomGame()
@@ -66,13 +66,12 @@ class Saver:
         self.dtype.append(('objects', 'O'))
 
         self.dtype = np.dtype(self.dtype)
-
-        self.states = []
+        self.clear()
 
     def clear(self):
-        self.states = []
+        self.states = defaultdict(list)
 
-    def add(self, state):
+    def add(self, state, episode=0):
         array = [state.number, state.tic,
                  tuple(state.game_variables), state.screen_buffer]
         if self.is_depth_buffer_enabled:
@@ -85,10 +84,12 @@ class Saver:
         array.append(to_dict_foreach(state.objects))
 
         array = np.array([tuple(array)], dtype=self.dtype)
-        self.states.append(array)
+        self.states[episode].append(array)
         return array
 
-    def save(self, filename):
-        stack = np.vstack(self.states)
-        np.save(filename, stack)
+    def save(self, filename, compress=True):
+        savefn = np.savez_compressed if compress else np.savez
+
+        stack = {str(k): np.vstack(v) for k, v in self.states.items()}
+        savefn(filename, **stack)
 
