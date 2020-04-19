@@ -27,7 +27,7 @@ class DoomSegmentationDataset(Dataset):
         return screen, labels
 
     def get_all_idxs(self):
-        return [p.name.split('_')[:2] for p in self.png_dir.glob('*_screen.png')]
+        return [tuple(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')]
 
 
 class DoomSegmentAutoencoderDataset(DoomSegmentationDataset):
