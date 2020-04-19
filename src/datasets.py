@@ -28,3 +28,11 @@ class DoomSegmentationDataset(Dataset):
 
     def get_all_idxs(self):
         return [p.name.split('_')[:2] for p in self.png_dir.glob('*_screen.png')]
+
+
+class DoomSegmentAutoencoderDataset(DoomSegmentationDataset):
+    def __init__(self, png_dir):
+        super().__init__(png_dir)
+
+    def __getitem__(self, idx):
+        raise NotImplementedError()
