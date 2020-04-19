@@ -1,12 +1,19 @@
 import torch
 import numpy as np
-from torchvision import transforms, datasets
 
 def extract_segment(img, seg, obj_id):
     return torch.where(torch.eq(seg, obj_id), img, torch.tensor(0.0))
 
 
+def torch_to_normal_shape(img):
+    if torch.is_tensor(img):
+        img = img.numpy()
+
+    return np.moveaxis(img, 0, 2)
+
+
 if __name__ == '__main__':
+    from torchvision import transforms
     from PIL import Image
     from matplotlib import pyplot as plt
 
