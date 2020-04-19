@@ -36,6 +36,9 @@ if __name__ == '__main__':
         lmp_dir = out_dir.joinpath('lmp')
         lmp_dir.mkdir()
 
+    png_dir = args.out_dir.joinpath('images')
+    png_dir.mkdir(exist_ok=True)
+
     game = vzd.DoomGame()
 
     # Use other config file if you wish.
@@ -67,7 +70,7 @@ if __name__ == '__main__':
     shoot = [False, False, True]
     actions = [left, right, shoot]
 
-    saver = Saver(game)
+    saver = Saver(game, png_dir)
 
     for i in tqdm(range(args.episodes)):
         if args.record_lmp:
@@ -78,9 +81,10 @@ if __name__ == '__main__':
 
         while not game.is_episode_finished():
             state = game.get_state()
+            action = random.choice(actions)
 
             saver.add(state, i)
-            game.make_action(random.choice(actions))
+            game.make_action(action)
 
     saver.save(args.out_dir.joinpath('states.npz'), False)
     game.close()
