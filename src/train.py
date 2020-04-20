@@ -1,64 +1,75 @@
 import torch
 import torch.cuda
+import torchvision.models as models
+from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SequentialSampler, SubsetRandomSampler
 import random
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
-from time import sleep
+import shutil
+from pathlib import Path
 
-from improc import extract_segment, torch_to_normal_shape
 from datasets import DoomSegmentationDataset
-from models.perception import Perception, InversePerception
+from models.loss import LossNetwork
+from improc import *
+from models.perception import *
 
 if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cpu")
     print(f'Using device {device}.')
 
-    dataset = DoomSegmentationDataset('/home/nistath/Desktop/run1/images/')
+    val_path = Path('/home/nistath/Desktop/val')
+
+    img_size = (240, 320)
+    dataset = DoomSegmentationDataset(
+        '/home/nistath/Desktop/run1/images/', desired_size=img_size)
 
     split = 0.9
-    batch_size = 10
+    batch_size = 8
 
     all_idxs = dataset.get_all_idxs()
     random.shuffle(all_idxs)
     split_point = int(split * len(all_idxs))
     trn_idxs = all_idxs[:split_point]
     val_idxs = all_idxs[split_point:]
+    del all_idxs
     trn_sampler = SubsetRandomSampler(trn_idxs)
     trn_dataloader = DataLoader(
         dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
     model = torch.nn.Sequential(
-        Perception((3, 480, 640), 256),
-        InversePerception((3, 480, 640), 256),
+        Perception((3,) + img_size, 256),
+        InversePerception((3,) + img_size, 256),
     ).to(device)
 
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
-    criterion = torch.nn.MSELoss()
+    MSELoss = torch.nn.MSELoss()
 
     if True:
+        # vgg_model = models.vgg16(pretrained=True).to(device)
+        # loss_network = LossNetwork(vgg_model)
+        # loss_network.eval()
+
         model.train()
         print('Starting training.')
-        for screens, segmaps in tqdm(trn_dataloader):
-            imgs = []
-            for screen, segmap in zip(screens, segmaps):
-                # TODO: Get unique from the npz
-                for obj_id in torch.unique(segmap):
-                    img = extract_segment(screen, segmap, obj_id)
-                    imgs.append(img)
+        for epoch in trange(1):
+            for screens, segmaps in tqdm(trn_dataloader):
+                imgs = get_individual_segments(screens, segmaps).to(device)
 
-            imgs = torch.stack(imgs).to(device)
-            opt.zero_grad()
-            imgs_hat = model(imgs)
-            loss = criterion(imgs, imgs_hat)
-            del imgs
-            del imgs_hat
-            loss.backward()
-            opt.step()
-            tqdm.write(f'Loss: {loss.data.item()}')
+                opt.zero_grad()
+                # print(imgs.shape)
+                imgs_hat = model(imgs)
+                # print(imgs_hat.shape)
+                # exit()
+                loss = MSELoss(imgs, imgs_hat)
+                del imgs
+                del imgs_hat
+                loss.backward()
+                opt.step()
+                tqdm.write(f'Loss: {loss.data.item()}')
 
         torch.save(model.state_dict(), 'model.pth')
         torch.save(trn_idxs, 'trn_idxs.pth')
@@ -73,27 +84,16 @@ if __name__ == '__main__':
     val_dataloader = DataLoader(
         dataset, batch_size=1, num_workers=0, sampler=val_sampler)
 
+    if val_path.exists():
+        shutil.rmtree(val_path)
+    val_path.mkdir()
+
     model.eval()
     with torch.no_grad():
-        for screens, segmaps in tqdm(val_dataloader):
-            imgs = []
-            for screen, segmap in zip(screens, segmaps):
-                # TODO: Get unique from the npz
-                for obj_id in torch.unique(segmap):
-                    img = extract_segment(screen, segmap, obj_id)
-                    imgs.append(img)
-
-            imgs = torch.stack(imgs).to(device)
+        for i, (screens, segmaps) in enumerate(tqdm(val_dataloader)):
+            imgs = get_individual_segments(screens, segmaps).to(device)
             imgs_hat = model(imgs)
-            f, ax = plt.subplots(2, imgs.shape[0])
-            for i in range(imgs.shape[0]):
-                ax[0, i].imshow(torch_to_normal_shape(imgs[i].cpu()))
-                ax[1, i].imshow(torch_to_normal_shape(imgs_hat[i].cpu()))
 
-            try:
-                plt.ion()
-                while True:
-                    plt.show(block=True)
-                    break
-            except KeyboardInterrupt:
-                exit(-1)
+            grid_img = make_grid(
+                torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])
+            tensor2pil(grid_img).save(val_path.joinpath(f'{i}.png'))
