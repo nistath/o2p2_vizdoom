@@ -4,23 +4,19 @@ import torch
 def Perception(img_dim, out_features):
     nn = torch.nn
 
-    # final_size = img_dim[1] * img_dim[2] / (2**4)
-    if img_dim[-2:] == (240, 320):
-        flatten_features = 59904
-    elif img_dim[-2:] == (480, 640):
-        flatten_features = 272384
+    final_size = img_dim[1] * img_dim[2] // (2**8)
 
     return nn.Sequential(
-        nn.Conv2d(img_dim[0], 32, 4, 2),
+        nn.Conv2d(img_dim[0], 32, 3, 2, 1),
         nn.ReLU(inplace=True),
-        nn.Conv2d(32, 64, 4, 2),
+        nn.Conv2d(32, 64, 3, 2, 1),
         nn.ReLU(inplace=True),
-        nn.Conv2d(64, 128, 4, 2),
+        nn.Conv2d(64, 128, 3, 2, 1),
         nn.ReLU(inplace=True),
-        nn.Conv2d(128, 256, 4, 2),
+        nn.Conv2d(128, 256, 3, 2, 1),
         nn.ReLU(inplace=True),
         nn.Flatten(),
-        nn.Linear(flatten_features, out_features),
+        nn.Linear(256 * final_size, out_features),
     )
 
 class InversePerception(torch.nn.Module):
@@ -49,8 +45,8 @@ class InversePerceptionConv(torch.nn.Module):
         super(InversePerceptionConv, self).__init__()
 
         nn = torch.nn
-        # self.to_img = nn.Linear(in_features, 16 * img_dim[1] * img_dim[2])
-        # self.img_dim = img_dim
+        self.to_img = nn.Linear(in_features, 16 * img_dim[1] * img_dim[2])
+        self.img_dim = img_dim
         # kernel like 3
         # padding 1
 
