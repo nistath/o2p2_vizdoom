@@ -83,7 +83,7 @@ if __name__ == '__main__':
     val_sampler = SequentialSampler(trn_idxs[:30])
     # val_sampler = SubsetRandomSampler(val_idxs)
     val_dataloader = DataLoader(
-        dataset, batch_size=1, num_workers=0, sampler=val_sampler)
+        dataset, batch_size=8, num_workers=0, sampler=val_sampler)
 
     if val_path.exists():
         shutil.rmtree(val_path)

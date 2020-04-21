@@ -58,8 +58,10 @@ class InversePerceptionConv(torch.nn.Module):
             nn.ConvTranspose2d(256, 128, 5, 2, 2, 1),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(128, 64, 5, 2, 2, 1),
+            nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(64, 32, 5, 2, 2, 1),
+            nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(32, img_dim[0], 5, 2, 2, 1),
             nn.Sigmoid()
