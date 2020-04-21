@@ -7,13 +7,13 @@ def Perception(img_dim, out_features):
     final_size = img_dim[1] * img_dim[2] // (2**8)
 
     return nn.Sequential(
-        nn.Conv2d(img_dim[0], 32, 3, 2, 1),
+        nn.Conv2d(img_dim[0], 32, 5, 2, 2),
         nn.ReLU(inplace=True),
-        nn.Conv2d(32, 64, 3, 2, 1),
+        nn.Conv2d(32, 64, 5, 2, 2),
         nn.ReLU(inplace=True),
-        nn.Conv2d(64, 128, 3, 2, 1),
+        nn.Conv2d(64, 128, 5, 2, 2),
         nn.ReLU(inplace=True),
-        nn.Conv2d(128, 256, 3, 2, 1),
+        nn.Conv2d(128, 256, 5, 2, 2),
         nn.ReLU(inplace=True),
         nn.Flatten(),
         nn.Linear(256 * final_size, out_features),
@@ -38,7 +38,7 @@ class InversePerception(torch.nn.Module):
 
     def forward(self, x):
         img = self.to_img(x)
-        return torch.reshape(img, (img.shape[0], 3, self.img_dim[1], self.img_dim[2]))
+        return img.view((img.shape[0], 3, self.img_dim[1], self.img_dim[2]))
 
 
 class InversePerceptionConv(torch.nn.Module):
@@ -55,13 +55,13 @@ class InversePerceptionConv(torch.nn.Module):
         self.start_dim = (img_dim[1] // 16, img_dim[2] // 16)
 
         self.conv = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 3, 2, 1, 1),
+            nn.ConvTranspose2d(256, 128, 5, 2, 2, 1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(128, 64, 3, 2, 1, 1),
+            nn.ConvTranspose2d(128, 64, 5, 2, 2, 1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, 3, 2, 1, 1),
+            nn.ConvTranspose2d(64, 32, 5, 2, 2, 1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, img_dim[0], 3, 2, 1, 1),
+            nn.ConvTranspose2d(32, img_dim[0], 5, 2, 2, 1),
             nn.Sigmoid()
         )
 

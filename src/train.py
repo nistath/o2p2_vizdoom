@@ -26,8 +26,10 @@ if __name__ == '__main__':
     dataset = DoomSegmentationDataset(
         '/home/nistath/Desktop/run1/images/', desired_size=img_size)
 
+    num_features = 256
+
     split = 0.9
-    batch_size = 8
+    batch_size = 2
 
     all_idxs = dataset.get_all_idxs()
     random.shuffle(all_idxs)
@@ -40,11 +42,11 @@ if __name__ == '__main__':
         dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
     model = torch.nn.Sequential(
-        Perception((3,) + img_size, 256),
-        InversePerceptionConv((3,) + img_size, 256),
+        Perception((3,) + img_size, num_features),
+        InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    opt = torch.optim.Adam(model.parameters(), lr=3e-4)
     # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
     MSELoss = torch.nn.MSELoss()
 
@@ -78,7 +80,8 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    val_sampler = SubsetRandomSampler(val_idxs)
+    val_sampler = SubsetRandomSampler(trn_idxs[:30])
+    # val_sampler = SubsetRandomSampler(val_idxs)
     val_dataloader = DataLoader(
         dataset, batch_size=1, num_workers=0, sampler=val_sampler)
 
