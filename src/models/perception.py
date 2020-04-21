@@ -8,8 +8,10 @@ def Perception(img_dim, out_features):
 
     return nn.Sequential(
         nn.Conv2d(img_dim[0], 32, 5, 2, 2),
+        nn.BatchNorm2d(32),
         nn.ReLU(inplace=True),
         nn.Conv2d(32, 64, 5, 2, 2),
+        nn.BatchNorm2d(64),
         nn.ReLU(inplace=True),
         nn.Conv2d(64, 128, 5, 2, 2),
         nn.ReLU(inplace=True),
