@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     model = torch.nn.Sequential(
         Perception((3,) + img_size, 256),
-        InversePerception((3,) + img_size, 256),
+        InversePerceptionConv((3,) + img_size, 256),
     ).to(device)
 
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -55,15 +55,13 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        for epoch in trange(1):
+        for epoch in trange(2):
             for screens, segmaps in tqdm(trn_dataloader):
                 imgs = get_individual_segments(screens, segmaps).to(device)
 
                 opt.zero_grad()
-                # print(imgs.shape)
                 imgs_hat = model(imgs)
-                # print(imgs_hat.shape)
-                # exit()
+                # print(imgs.shape, imgs_hat.shape); exit()
                 loss = MSELoss(imgs, imgs_hat)
                 del imgs
                 del imgs_hat
