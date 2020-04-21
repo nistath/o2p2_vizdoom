@@ -1,10 +1,12 @@
 import torch
-from torch.utils.data.dataset import Dataset, TensorDataset
+from torch.utils.data.dataset import Dataset, IterableDataset
+from torchvision import transforms
 from pathlib import Path
 from PIL import Image
 import numpy as np
+import math
+from functools import lru_cache
 
-from torchvision import transforms
 from improc import extract_segment
 
 
@@ -43,13 +45,30 @@ class DoomSegmentationDataset(Dataset):
 
         return screen, segmap
 
+    @lru_cache(maxsize=1)
     def get_all_idxs(self):
-        return [tuple(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')]
+        return [tuple(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')].sort()
 
 
-class DoomSegmentAutoencoderDataset(DoomSegmentationDataset):
-    def __init__(self, png_dir):
-        super().__init__(png_dir)
+class DoomSegmentedDataset(Dataset):
+    def __init__(self, states, *args, **kwargs):
+        self.states = np.load(states, allow_pickle=True)
+        self.dataset = DoomSegmentationDataset(*args, **kwargs)
+
+    @lru_cache(maxsize=1)
+    def get_all_idxs(self):
+        idxs = []
+        for episode_key in self.states:
+            episode = int(episode_key)
+            for state in self.states[episode_key]:
+                number = state['number'].item()
+                for label in state['labels'].item():
+                    idxs.append((episode, number, label['object_id']))
+
+        return idxs
 
     def __getitem__(self, idx):
-        raise NotImplementedError()
+        episode, number, obj_id = idx
+
+        screen, segmap = self.dataset[(episode, number)]
+        return extract_segment(screen, segmap, obj_id)

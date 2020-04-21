@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
 
-from datasets import DoomSegmentationDataset
+from datasets import DoomSegmentationDataset, DoomSegmentedDataset
 from models.loss import LossNetwork
 from improc import *
 from models.perception import *
@@ -23,8 +23,8 @@ if __name__ == '__main__':
     val_path = Path('/home/nistath/Desktop/val')
 
     img_size = (240, 320)
-    dataset = DoomSegmentationDataset(
-        '/home/nistath/Desktop/run1/images/', desired_size=img_size)
+    dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
+                                   '/home/nistath/Desktop/run1/images/', desired_size=img_size)
 
     num_features = 256
 
@@ -58,8 +58,8 @@ if __name__ == '__main__':
         model.train()
         print('Starting training.')
         for epoch in trange(2):
-            for screens, segmaps in tqdm(trn_dataloader):
-                imgs = get_individual_segments(screens, segmaps).to(device)
+            for imgs in tqdm(trn_dataloader):
+                imgs = imgs.to(device)
 
                 opt.zero_grad()
                 imgs_hat = model(imgs)
@@ -91,8 +91,9 @@ if __name__ == '__main__':
 
     model.eval()
     with torch.no_grad():
-        for i, (screens, segmaps) in enumerate(tqdm(val_dataloader)):
-            imgs = get_individual_segments(screens, segmaps).to(device)
+        for i, imgs in enumerate(tqdm(val_dataloader)):
+            imgs = imgs.to(device)
+
             imgs_hat = model(imgs)
 
             grid_img = make_grid(
