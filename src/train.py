@@ -3,14 +3,14 @@ import torch.cuda
 import torchvision.models as models
 from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SequentialSampler, SubsetRandomSampler
+from torch.utils.data.sampler import SubsetRandomSampler
 import random
 from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
 
-from datasets import DoomSegmentationDataset, DoomSegmentedDataset
+from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler
 from models.loss import LossNetwork
 from improc import *
 from models.perception import *
@@ -29,28 +29,28 @@ if __name__ == '__main__':
     num_features = 256
 
     split = 0.9
-    batch_size = 2
-
-    all_idxs = dataset.get_all_idxs()
-    random.shuffle(all_idxs)
-    split_point = int(split * len(all_idxs))
-    trn_idxs = all_idxs[:split_point]
-    val_idxs = all_idxs[split_point:]
-    del all_idxs
-    trn_sampler = SubsetRandomSampler(trn_idxs)
-    trn_dataloader = DataLoader(
-        dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
+    batch_size = 32
 
     model = torch.nn.Sequential(
         Perception((3,) + img_size, num_features),
         InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    opt = torch.optim.Adam(model.parameters(), lr=3e-4)
-    # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
-    MSELoss = torch.nn.MSELoss()
-
     if True:
+        all_idxs = dataset.get_all_idxs()
+        random.shuffle(all_idxs)
+        split_point = int(split * len(all_idxs))
+        trn_idxs = all_idxs[:split_point]
+        val_idxs = all_idxs[split_point:]
+        del all_idxs
+        trn_sampler = SubsetRandomSampler(trn_idxs)
+        trn_dataloader = DataLoader(
+            dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
+
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
+        MSELoss = torch.nn.MSELoss()
+
         # vgg_model = models.vgg16(pretrained=True).to(device)
         # loss_network = LossNetwork(vgg_model)
         # loss_network.eval()
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    val_sampler = SubsetRandomSampler(trn_idxs[:30])
+    val_sampler = SequentialSampler(trn_idxs[:30])
     # val_sampler = SubsetRandomSampler(val_idxs)
     val_dataloader = DataLoader(
         dataset, batch_size=1, num_workers=0, sampler=val_sampler)

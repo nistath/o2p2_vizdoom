@@ -8,6 +8,12 @@ import math
 from functools import lru_cache
 
 from improc import extract_segment
+from torch.utils.data.sampler import Sampler
+
+
+class SequentialSampler(list, Sampler):
+    def __init__(self, *args, **kwargs):
+        list.__init__(self, *args, **kwargs)
 
 
 class DoomSegmentationDataset(Dataset):
@@ -62,8 +68,11 @@ class DoomSegmentedDataset(Dataset):
             episode = int(episode_key)
             for state in self.states[episode_key]:
                 number = state['number'].item()
-                for label in state['labels'].item():
-                    idxs.append((episode, number, label['object_id']))
+                for i in range(len(state['labels'].item()) + 1):
+                    idxs.append((episode, number, i))
+
+                # for label in state['labels'].item():
+                #     idxs.append((episode, number, label['object_id']))
 
         return idxs
 
@@ -71,4 +80,6 @@ class DoomSegmentedDataset(Dataset):
         episode, number, obj_id = idx
 
         screen, segmap = self.dataset[(episode, number)]
+        # HACK: Fix object_id in states not correlating to buffer
+        obj_id = torch.unique(segmap)[obj_id]
         return extract_segment(screen, segmap, obj_id)
