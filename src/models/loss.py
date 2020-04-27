@@ -2,12 +2,20 @@ import torch
 from collections import namedtuple
 
 
-def masked_mse_loss(inputs, targets, masks):
-    masks = masks.unsqueeze(1)
+def masked_mse_loss(inputs, targets, masks, focus=0.2):
+    total_area = masks.numel() // masks.shape[0]
+    obj_area = torch.flatten(masks, start_dim=1).sum(1)
+    bg_area = total_area - obj_area
+
+    obj_area.unsqueeze_(-1).unsqueeze_(-1)
+    bg_area.unsqueeze_(-1).unsqueeze_(-1)
+
+    masks = bg_area * masks + focus * obj_area * masks.logical_not()
+    masks.unsqueeze_(1)
+
     error = inputs - targets
     error = torch.mul(error, error)
-    # TODO: add penalty for zero area
-    error = masks * error
+    error = error * masks
     error = torch.flatten(error, start_dim=1).sum(1)  # error per object
     # votes = torch.flatten(masks, start_dim=1).sum(1)  # votes per object
     return torch.mean(error)  # all object are equal

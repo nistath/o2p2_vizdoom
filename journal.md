@@ -12,5 +12,14 @@
 
 - The loss was being unfair to smaller objects because it was using mean reduction.
   The network got the zero pixels right all the time, but had no incentive to learn anything other than a blur for the objects.
+  
+  - Masking the loss directly ignored getting the background zero pixels right, which was bad for localizing.
+  - Some nice results with masks = masks + focus * masks.logical_not()
+  - The focus parameter was reinterpreted to mean the focus the loss should place on the
+    object vs the background. It was weighted by their relative area.
+    
+    - one idea is to vary that parameter over the epochs
+      first learn how to represent the object and then learn to isolate it 
+
 
 - TODO: Perceptual loss might be needed to increase sharpness.
