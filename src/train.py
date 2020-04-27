@@ -25,7 +25,7 @@ if __name__ == '__main__':
     img_size = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
                                    '/home/nistath/Desktop/run1/images/', desired_size=img_size,
-                                   blacklist=(0, 1,)
+                                #    blacklist=(0, 1,)
                                    )
 
     num_features = 333
@@ -50,21 +50,20 @@ if __name__ == '__main__':
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-        MSELoss = torch.nn.MSELoss()
 
         model.train()
         print('Starting training.')
-        for epoch in trange(5):
-            for imgs, masks in tqdm(trn_dataloader):
+        max_epoch = 7
+        for epoch in trange(max_epoch):
+            focus = [0.1, 0.5, 1, 1.5, 10, 1, 0.8][epoch]
+            desc = f'focus={focus}'
+            for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)
                 masks = masks.to(device)
 
                 opt.zero_grad()
                 imgs_hat = model(imgs)
-                # loss = MSELoss(imgs, imgs_hat)
-                loss = masked_mse_loss(imgs, imgs_hat, masks, 1.5)
-                del imgs
-                del imgs_hat
+                loss = masked_mse_loss(imgs, imgs_hat, masks, focus)
                 loss.backward()
                 opt.step()
                 tqdm.write(f'Loss: {loss.data.item()}')

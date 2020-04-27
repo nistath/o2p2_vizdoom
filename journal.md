@@ -20,6 +20,8 @@
     
     - one idea is to vary that parameter over the epochs
       first learn how to represent the object and then learn to isolate it 
-
+      It had an interesting result. Should keep it. Wonder what the importance of perceptual loss will be.
+    
+- TODO: Fix scenario inbalance when blacklisting is not used.
 
 - TODO: Perceptual loss might be needed to increase sharpness.
