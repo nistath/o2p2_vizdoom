@@ -11,8 +11,8 @@ import shutil
 from pathlib import Path
 
 from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler
-from models.loss import LossNetwork
 from improc import *
+from models.loss import LossNetwork, masked_mse_loss
 from models.perception import *
 
 if __name__ == '__main__':
@@ -49,23 +49,17 @@ if __name__ == '__main__':
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-        # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
-        MSELoss = torch.nn.MSELoss(reduction='sum')
-
-        # vgg_model = models.vgg16(pretrained=True).to(device)
-        # loss_network = LossNetwork(vgg_model)
-        # loss_network.eval()
 
         model.train()
         print('Starting training.')
         for epoch in trange(10):
             for imgs, masks in tqdm(trn_dataloader):
                 imgs = imgs.to(device)
+                masks = masks.to(device)
 
                 opt.zero_grad()
                 imgs_hat = model(imgs)
-                # print(imgs.shape, imgs_hat.shape); exit()
-                loss = MSELoss(imgs, imgs_hat)
+                loss = masked_mse_loss(imgs, imgs_hat, masks)
                 del imgs
                 del imgs_hat
                 loss.backward()
