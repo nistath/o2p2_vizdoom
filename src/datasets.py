@@ -57,9 +57,10 @@ class DoomSegmentationDataset(Dataset):
 
 
 class DoomSegmentedDataset(Dataset):
-    def __init__(self, states, *args, **kwargs):
+    def __init__(self, states, *args, blacklist=tuple(), **kwargs):
         self.states = np.load(states, allow_pickle=True)
         self.dataset = DoomSegmentationDataset(*args, **kwargs)
+        self.blacklist = blacklist
 
     @lru_cache(maxsize=1)
     def get_all_idxs(self):
@@ -68,7 +69,14 @@ class DoomSegmentedDataset(Dataset):
             episode = int(episode_key)
             for state in self.states[episode_key]:
                 number = state['number'].item()
-                for i in range(len(state['labels'].item()) + 1):
+                total = len(state['labels'].item()) + 1
+                if total > 255:
+                    raise ValueError('invalid number of labels')
+
+                for i in range(total):
+                    if i in self.blacklist:
+                        continue
+
                     idxs.append((episode, number, i))
 
                 # for label in state['labels'].item():
@@ -81,5 +89,6 @@ class DoomSegmentedDataset(Dataset):
 
         screen, segmap = self.dataset[(episode, number)]
         # HACK: Fix object_id in states not correlating to buffer
-        obj_id = torch.unique(segmap)[obj_id]
+        obj_id = torch.unique(segmap, sorted=True)[obj_id]
+
         return extract_segment(screen, segmap, obj_id)

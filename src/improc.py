@@ -6,17 +6,16 @@ pil2tensor = transforms.ToTensor()
 tensor2pil = transforms.ToPILImage()
 
 def extract_segment(img, seg, obj_id):
-    return torch.where(torch.eq(seg, obj_id), img, torch.tensor(0.0))
+    mask = torch.eq(seg, obj_id)
+    return torch.where(mask, img, torch.tensor(0.0)), mask
 
 
 def get_individual_segments(screens, segmaps):
     imgs = []
     for screen, segmap in zip(screens, segmaps):
         # TODO: Get unique from the npz
-        # img = extract_segment(screen, segmap, 0)
-        # imgs.append(img)
         for obj_id in torch.unique(segmap):
-            img = extract_segment(screen, segmap, obj_id)
+            img, _ = extract_segment(screen, segmap, obj_id)
             imgs.append(img)
 
     return torch.stack(imgs)
@@ -36,7 +35,7 @@ if __name__ == '__main__':
     img = pil2tensor(Image.open('/home/nistath/Desktop/run1/images/4_300_screen.png'))
     seg = torch.from_numpy(np.array(Image.open('/home/nistath/Desktop/run1/images/4_300_labels.png')))
 
-    out = extract_segment(img, seg, 0)
+    out, _ = extract_segment(img, seg, 0)
     out = np.moveaxis(out.numpy(), 0, 2)
     plt.imshow(out)
     plt.show()

@@ -24,9 +24,10 @@ if __name__ == '__main__':
 
     img_size = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
-                                   '/home/nistath/Desktop/run1/images/', desired_size=img_size)
+                                   '/home/nistath/Desktop/run1/images/', desired_size=img_size,
+                                   blacklist=(0, 1,))
 
-    num_features = 256
+    num_features = 333
 
     split = 0.9
     batch_size = 32
@@ -49,7 +50,7 @@ if __name__ == '__main__':
 
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
         # opt = torch.optim.SGD(model.parameters(), 1e-3, momentum=0.9)
-        MSELoss = torch.nn.MSELoss()
+        MSELoss = torch.nn.MSELoss(reduction='sum')
 
         # vgg_model = models.vgg16(pretrained=True).to(device)
         # loss_network = LossNetwork(vgg_model)
@@ -57,8 +58,8 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        for epoch in trange(2):
-            for imgs in tqdm(trn_dataloader):
+        for epoch in trange(10):
+            for imgs, masks in tqdm(trn_dataloader):
                 imgs = imgs.to(device)
 
                 opt.zero_grad()
@@ -80,8 +81,8 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    # val_sampler = SequentialSampler(trn_idxs[:30])
-    val_sampler = SubsetRandomSampler(val_idxs)
+    val_sampler = SequentialSampler(trn_idxs[:batch_size * 2])
+    # val_sampler = SubsetRandomSampler(val_idxs)
     val_dataloader = DataLoader(
         dataset, batch_size=32, num_workers=0, sampler=val_sampler)
 
@@ -91,7 +92,7 @@ if __name__ == '__main__':
 
     model.eval()
     with torch.no_grad():
-        for i, imgs in enumerate(tqdm(val_dataloader)):
+        for i, (imgs, _) in enumerate(tqdm(val_dataloader)):
             imgs = imgs.to(device)
 
             imgs_hat = model(imgs)
