@@ -18,7 +18,7 @@ def masked_mse_loss(inputs, targets, masks, focus=1):
     error = error * masks
     error = error.flatten(start_dim=1).sum(1)  # error per object
     # votes = torch.flatten(masks, start_dim=1).sum(1)  # votes per object
-    return torch.mean(error)  # all object are equal
+    return torch.mean(error) / total_area  # all scenes are equal
 
 
 # https://towardsdatascience.com/pytorch-implementation-of-perceptual-losses-for-real-time-style-transfer-8d608e2e9902

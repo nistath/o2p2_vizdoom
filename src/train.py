@@ -14,9 +14,11 @@ from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSa
 from improc import *
 from models.loss import LossNetwork, masked_mse_loss
 from models.perception import *
+from PerceptualSimilarity.models import PerceptualLoss
 
 if __name__ == '__main__':
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    use_gpu = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_gpu else "cpu")
     # device = torch.device("cpu")
     print(f'Using device {device}.')
 
@@ -25,7 +27,7 @@ if __name__ == '__main__':
     img_size = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
                                    '/home/nistath/Desktop/run1/images/', desired_size=img_size,
-                                #    blacklist=(0, 1,)
+                                   blacklist=(0, 1,)
                                    )
 
     num_features = 333
@@ -50,23 +52,34 @@ if __name__ == '__main__':
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
         opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        perceptual_loss_fn = PerceptualLoss(
+            model='net-lin', net='squeeze', use_gpu=use_gpu)
 
         model.train()
         print('Starting training.')
         max_epoch = 7
         for epoch in trange(max_epoch):
-            focus = [0.1, 0.5, 1, 1.5, 10, 1, 0.8][epoch]
+            # focus = [0.1, 0.5, 1, 1.5, 10, 1, 0.8][epoch]
+            focus = 1.0
             desc = f'focus={focus}'
             for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)
                 masks = masks.to(device)
 
-                opt.zero_grad()
                 imgs_hat = model(imgs)
-                loss = masked_mse_loss(imgs, imgs_hat, masks, focus)
+
+                masked_loss = masked_mse_loss(imgs_hat, imgs, masks, focus)
+                perceptual_loss = perceptual_loss_fn.forward(
+                    imgs_hat, imgs).mean()
+                loss = masked_loss + 20 * perceptual_loss
+                opt.zero_grad()
                 loss.backward()
                 opt.step()
-                tqdm.write(f'Loss: {loss.data.item()}')
+
+                losses = (masked_loss.data.item(),
+                          perceptual_loss.data.item(),
+                          loss.data.item())
+                tqdm.write(f'Loss: {losses}')
 
         torch.save(model.state_dict(), 'model.pth')
         torch.save(trn_idxs, 'trn_idxs.pth')
