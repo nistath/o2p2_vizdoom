@@ -10,11 +10,15 @@ from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
 
-from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler
+from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler, StratifiedRandomSampler
 from improc import *
 from models.loss import LossNetwork, masked_mse_loss
 from models.perception import *
 from PerceptualSimilarity.models import PerceptualLoss
+
+def idx_label(idx):
+    _, _, i = idx
+    return i
 
 if __name__ == '__main__':
     use_gpu = torch.cuda.is_available()
@@ -27,7 +31,7 @@ if __name__ == '__main__':
     img_size = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
                                    '/home/nistath/Desktop/run1/images/', desired_size=img_size,
-                                   blacklist=(0, 1,)
+                                #    blacklist=(0, 1,)
                                    )
 
     num_features = 333
@@ -40,13 +44,15 @@ if __name__ == '__main__':
         InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    if True:
+    if False:
         all_idxs = dataset.get_all_idxs()
         random.shuffle(all_idxs)
         split_point = int(split * len(all_idxs))
         trn_idxs = all_idxs[:split_point]
         val_idxs = all_idxs[split_point:]
         del all_idxs
+
+        # trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
         trn_sampler = SubsetRandomSampler(trn_idxs)
         trn_dataloader = DataLoader(
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
@@ -69,9 +75,9 @@ if __name__ == '__main__':
                 imgs_hat = model(imgs)
 
                 masked_loss = masked_mse_loss(imgs_hat, imgs, masks, focus)
-                perceptual_loss = perceptual_loss_fn.forward(
+                perceptual_loss = 20 * perceptual_loss_fn.forward(
                     imgs_hat, imgs).mean()
-                loss = masked_loss + 20 * perceptual_loss
+                loss = masked_loss + perceptual_loss
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -90,8 +96,9 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    val_sampler = SequentialSampler(trn_idxs[:batch_size * 2])
-    # val_sampler = SubsetRandomSampler(val_idxs)
+    val_sampler = StratifiedRandomSampler(trn_idxs[:4*batch_size], idx_label)
+    val_sampler = SequentialSampler(val_sampler.as_unshuffled_list())
+    # val_sampler = SequentialSampler(val_idxs)
     val_dataloader = DataLoader(
         dataset, batch_size=32, num_workers=0, sampler=val_sampler)
 

@@ -6,14 +6,72 @@ from PIL import Image
 import numpy as np
 import math
 from functools import lru_cache
+from collections import defaultdict, Counter
+import random
+from copy import copy
+import itertools
 
 from improc import extract_segment
 from torch.utils.data.sampler import Sampler
 
 
+def shuffle(x, *args, **kwargs):
+    random.shuffle(x, *args, **kwargs)
+    return x
+
+
+def shuffled_resample(x, length: int):
+    if len(x) > length:
+        return shuffle(x)[:length]
+
+    if len(x) == length:
+        return shuffle(x)
+
+    shuffle(x)
+    d, m = divmod(length, len(x))
+    x = (x * d) + x[:m]
+    return shuffle(x)
+
+
 class SequentialSampler(list, Sampler):
     def __init__(self, *args, **kwargs):
         list.__init__(self, *args, **kwargs)
+
+
+class StratifiedRandomSampler(Sampler):
+    def __init__(self, indices, label_fn, label_probability=None):
+        self.labeled_idxs = defaultdict(list)
+        self.label_fn = label_fn
+        self.labels = set(map(label_fn, indices))
+
+        if label_probability is None:
+            P = 1 / len(self.labels)
+            self.label_probability = {label: P for label in self.labels}
+        else:
+            self.label_probability = label_probability
+            assert all(label in self.labels for label in self.label_probability)
+        assert sum(self.label_probability.values()) == 1.0
+
+        for idx in indices:
+            label = label_fn(idx)
+            if self.label_probability.get(label, 0) > 0:
+                self.labeled_idxs[label].append(idx)
+
+    def as_unshuffled_list(self):
+        length = len(self)
+        output = itertools.chain.from_iterable(shuffled_resample(copy(idxs),
+                                                                 int(length * self.label_probability[label]))
+                                               for label, idxs in self.labeled_idxs.items())
+        return list(output)
+
+    def as_list(self):
+        return shuffled_resample(self.as_unshuffled_list(), length)
+
+    def __iter__(self):
+        return iter(self.as_list())
+
+    def __len__(self):
+        return sum(len(idxs) for idxs in self.labeled_idxs.values())
 
 
 class DoomSegmentationDataset(Dataset):

@@ -22,6 +22,7 @@
       first learn how to represent the object and then learn to isolate it 
       It had an interesting result. Should keep it. Wonder what the importance of perceptual loss will be.
     
-- TODO: Fix scenario inbalance when blacklisting is not used.
+- Implemented stratification
+  Initially was poor because the idx_classify function relied on proper scenario numbers we didn't have.
 
 - TODO: Perceptual loss might be needed to increase sharpness.
