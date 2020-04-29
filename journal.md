@@ -24,5 +24,6 @@
     
 - Implemented stratification
   Initially was poor because the idx_classify function relied on proper scenario numbers we didn't have.
+  Fixed it by using obj_name.
 
 - TODO: Perceptual loss might be needed to increase sharpness.

@@ -9,7 +9,7 @@ from functools import lru_cache
 from collections import defaultdict, Counter
 import random
 from copy import copy
-import itertools
+from itertools import chain
 
 from improc import extract_segment
 from torch.utils.data.sampler import Sampler
@@ -50,22 +50,24 @@ class StratifiedRandomSampler(Sampler):
         else:
             self.label_probability = label_probability
             assert all(label in self.labels for label in self.label_probability)
-        assert sum(self.label_probability.values()) == 1.0
+        assert 0.99 < sum(self.label_probability.values()) <= 1.0
 
         for idx in indices:
             label = label_fn(idx)
             if self.label_probability.get(label, 0) > 0:
                 self.labeled_idxs[label].append(idx)
 
-    def as_unshuffled_list(self):
-        length = len(self)
-        output = itertools.chain.from_iterable(shuffled_resample(copy(idxs),
-                                                                 int(length * self.label_probability[label]))
-                                               for label, idxs in self.labeled_idxs.items())
+    def as_unshuffled_list(self, approx_len=None):
+        length = approx_len or len(self)
+        output = chain.from_iterable(shuffled_resample(copy(idxs),
+                                                       int(length * self.label_probability[label]))
+                                     for label, idxs in self.labeled_idxs.items())
         return list(output)
 
-    def as_list(self):
-        return shuffled_resample(self.as_unshuffled_list(), length)
+    def as_list(self, desired_len=None):
+        length = desired_len or len(self)
+        # HACK: There is a better way that doesn't sample with replacement here
+        return shuffled_resample(self.as_unshuffled_list(length), length)
 
     def __iter__(self):
         return iter(self.as_list())
@@ -131,22 +133,23 @@ class DoomSegmentedDataset(Dataset):
                 if total > 255:
                     raise ValueError('invalid number of labels')
 
-                for i in range(total):
-                    if i in self.blacklist:
-                        continue
-
-                    idxs.append((episode, number, i))
-
-                # for label in state['labels'].item():
-                #     idxs.append((episode, number, label['object_id']))
+                state_labels = ((x['value'], x['object_name'])
+                                for x in state['labels'].item())
+                labels = chain((
+                    (0, 'Walls'),
+                    (1, 'FloorCeil')),
+                    state_labels)
+                for label_id, name in labels:
+                    if label_id not in self.blacklist:
+                        idxs.append((episode, number, label_id, name))
 
         return idxs
 
     def __getitem__(self, idx):
-        episode, number, obj_id = idx
+        if len(idx) == 3:
+            episode, number, label_id = idx
+        else:
+            episode, number, label_id, _ = idx
 
         screen, segmap = self.dataset[(episode, number)]
-        # HACK: Fix object_id in states not correlating to buffer
-        obj_id = torch.unique(segmap, sorted=True)[obj_id]
-
-        return extract_segment(screen, segmap, obj_id)
+        return extract_segment(screen, segmap, label_id)

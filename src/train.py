@@ -17,8 +17,7 @@ from models.perception import *
 from PerceptualSimilarity.models import PerceptualLoss
 
 def idx_label(idx):
-    _, _, i = idx
-    return i
+    return idx[-1]
 
 if __name__ == '__main__':
     use_gpu = torch.cuda.is_available()
@@ -44,16 +43,17 @@ if __name__ == '__main__':
         InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    if False:
+    if True:
         all_idxs = dataset.get_all_idxs()
         random.shuffle(all_idxs)
         split_point = int(split * len(all_idxs))
         trn_idxs = all_idxs[:split_point]
         val_idxs = all_idxs[split_point:]
+
         del all_idxs
 
-        # trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
-        trn_sampler = SubsetRandomSampler(trn_idxs)
+        trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
+        # trn_sampler = SubsetRandomSampler(trn_idxs)
         trn_dataloader = DataLoader(
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        max_epoch = 7
+        max_epoch = 2
         for epoch in trange(max_epoch):
             # focus = [0.1, 0.5, 1, 1.5, 10, 1, 0.8][epoch]
             focus = 1.0
@@ -96,8 +96,8 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    val_sampler = StratifiedRandomSampler(trn_idxs[:4*batch_size], idx_label)
-    val_sampler = SequentialSampler(val_sampler.as_unshuffled_list())
+    val_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
+    val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(4*batch_size))
     # val_sampler = SequentialSampler(val_idxs)
     val_dataloader = DataLoader(
         dataset, batch_size=32, num_workers=0, sampler=val_sampler)
