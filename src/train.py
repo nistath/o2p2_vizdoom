@@ -23,9 +23,9 @@ def idx_label(idx):
 
 
 if __name__ == '__main__':
-    torch.manual_seed(6969)
-    random.seed(6969)
-    np.random.seed(6969)
+    # torch.manual_seed(6969)
+    # random.seed(6969)
+    # np.random.seed(6969)
 
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
@@ -40,19 +40,23 @@ if __name__ == '__main__':
                                    #    blacklist=(0, 1,)
                                    )
 
+    mask_mse_loss = True
+    use_stratification = False
     use_perceptual_loss = True
-    reuse_split = True
-    num_features = 256
+    reuse_split = False
+
+    cheat = False
 
     split = 0.9
     batch_size = 32
 
+    num_features = 256
     model = torch.nn.Sequential(
         Perception((3,) + img_size, num_features),
         InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    if True:
+    if False:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
@@ -64,8 +68,10 @@ if __name__ == '__main__':
             val_idxs = all_idxs[split_point:]
             del all_idxs
 
-        trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
-        # trn_sampler = SubsetRandomSampler(trn_idxs)
+        if use_stratification:
+            trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
+        else:
+            trn_sampler = SubsetRandomSampler(trn_idxs)
         trn_dataloader = DataLoader(
             dataset, batch_size=batch_size, num_workers=4, sampler=trn_sampler)
 
@@ -77,10 +83,10 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        max_epoch = 4
+        max_epoch = 7
         for epoch in trange(max_epoch):
             # focus = 1
-            focus = [0.1, 0.5, 1, 1.5][epoch]
+            focus = [0.1, 0.5, 1, 1, 1, 1.5, 1.5][epoch]
             desc = f'focus={focus}'
             for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)
@@ -88,11 +94,14 @@ if __name__ == '__main__':
 
                 imgs_hat = model(imgs)
 
-                loss = masked_mse_loss(imgs_hat, imgs, masks, focus)
-                # loss = mse_loss(imgs_hat, imgs)
+                if mask_mse_loss:
+                    loss = masked_mse_loss(imgs_hat, imgs, masks, focus)
+                else:
+                    loss = mse_loss(imgs_hat, imgs)
                 losses = (loss.data.item(),)
                 if use_perceptual_loss:
-                    perceptual_loss = 20 * perceptual_loss_fn.forward(
+                    scale = 30 if mask_mse_loss else 1
+                    perceptual_loss = scale * perceptual_loss_fn.forward(
                         imgs_hat, imgs).mean()
                     loss += perceptual_loss
                     losses += (perceptual_loss.data.item(),)
@@ -112,7 +121,6 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-    cheat = True
     val_num = 4*batch_size if cheat else None
     val_sampler = StratifiedRandomSampler(
         trn_idxs if cheat else val_idxs, idx_label)
