@@ -23,9 +23,9 @@ def idx_label(idx):
 
 
 if __name__ == '__main__':
-    # torch.manual_seed(6969)
-    # random.seed(6969)
-    # np.random.seed(6969)
+    torch.manual_seed(6969)
+    random.seed(6969)
+    np.random.seed(6969)
 
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
@@ -41,9 +41,9 @@ if __name__ == '__main__':
                                    )
 
     mask_mse_loss = True
-    use_stratification = False
+    use_stratification = True
     use_perceptual_loss = True
-    reuse_split = False
+    reuse_split = True
 
     cheat = False
 
@@ -56,7 +56,7 @@ if __name__ == '__main__':
         InversePerceptionConv((3,) + img_size, num_features),
     ).to(device)
 
-    if False:
+    if True:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
@@ -83,10 +83,10 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        max_epoch = 7
+        max_epoch = 8
         for epoch in trange(max_epoch):
             # focus = 1
-            focus = [0.1, 0.5, 1, 1, 1, 1.5, 1.5][epoch]
+            focus = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7][epoch]
             desc = f'focus={focus}'
             for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)
