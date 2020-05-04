@@ -5,6 +5,15 @@ from models.conv import Conv2dAuto, ConvTranspose2dAuto, BNorm, get_total_stride
 __all__ = ['Perception', 'InversePerception', 'ConvAutoencoder']
 
 
+class View(torch.nn.Module):
+    def __init__(self, *shape):
+        super(View, self).__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.view(*self.shape)
+
+
 def Perception(img_dim, out_features):
     nn = torch.nn
 
@@ -36,21 +45,31 @@ def ConvAutoencoder(img_dim):
     encoder = nn.Sequential(
         Conv2dAuto(img_dim[0], 32, 3, 2),
         nn.ReLU(inplace=True),
-        BNorm(Conv2dAuto(32, 64, 3, 2)),
+        BNorm(Conv2dAuto(32, 64, 7, 2)),
         nn.ReLU(inplace=True),
         BNorm(Conv2dAuto(64, 16, 3, 2)),
         nn.ReLU(inplace=True),
-        Conv2dAuto(16, 1, 3, 2),
+        BNorm(Conv2dAuto(16, 1, 3, 2)),
+        nn.ReLU(inplace=True),
+    )
+    stride = get_total_stride(encoder)
+    final_size = img_dim[1] * img_dim[2] // stride**2
+
+    encoder = nn.Sequential(
+        encoder,
+        View(-1, final_size),
+        nn.Linear(final_size, final_size)
     )
 
     decoder = nn.Sequential(
+        View(-1, 1, img_dim[1] // stride, img_dim[2] // stride),
         ConvTranspose2dAuto(1, 16, 5, 2),
         nn.ReLU(inplace=True),
         BNorm(ConvTranspose2dAuto(16, 64, 5, 2)),
         nn.ReLU(inplace=True),
-        BNorm(ConvTranspose2dAuto(64, 32, 7, 2)),
+        BNorm(ConvTranspose2dAuto(64, 32, 5, 2)),
         nn.ReLU(inplace=True),
-        ConvTranspose2dAuto(32, img_dim[0], 7, 2),
+        ConvTranspose2dAuto(32, img_dim[0], 5, 2),
         nn.Sigmoid()
     )
 
