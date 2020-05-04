@@ -49,10 +49,10 @@ if __name__ == '__main__':
     split = 0.9
     batch_size = 32
 
-    num_features = 256
-    model = torch.nn.Sequential(
+    # num_features = 256
         # Perception((3,) + img_shape, num_features),
-        # InversePerceptionConv((3,) + img_shape, num_features),
+        # InversePerception((3,) + img_shape, num_features),
+    model = torch.nn.Sequential(
         *ConvAutoencoder((3,) + img_shape),
     ).to(device)
 

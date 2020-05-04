@@ -59,7 +59,7 @@ def ConvAutoencoder(img_dim):
 
 class InversePerception(torch.nn.Module):
     def __init__(self, img_dim, in_features):
-        super(InversePerceptionConv, self).__init__()
+        super(InversePerception, self).__init__()
         nn = torch.nn
 
         self.conv = nn.Sequential(
