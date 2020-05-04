@@ -29,14 +29,13 @@ if __name__ == '__main__':
 
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
-    # device = torch.device("cpu")
     print(f'Using device {device}.')
 
     val_path = Path('/home/nistath/Desktop/val')
 
-    img_size = (240, 320)
+    img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
-                                   '/home/nistath/Desktop/run1/images/', desired_size=img_size,
+                                   '/home/nistath/Desktop/run1/images/', desired_size=img_shape,
                                    #    blacklist=(0, 1,)
                                    )
 
@@ -52,8 +51,9 @@ if __name__ == '__main__':
 
     num_features = 256
     model = torch.nn.Sequential(
-        Perception((3,) + img_size, num_features),
-        InversePerceptionConv((3,) + img_size, num_features),
+        # Perception((3,) + img_shape, num_features),
+        # InversePerceptionConv((3,) + img_shape, num_features),
+        *ConvAutoencoder((3,) + img_shape),
     ).to(device)
 
     if True:
@@ -83,10 +83,13 @@ if __name__ == '__main__':
 
         model.train()
         print('Starting training.')
-        max_epoch = 8
+
+        # foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
+        foci = [0.5, 1, 2, 5, 1, 0.7]
+        max_epoch = len(foci)
         for epoch in trange(max_epoch):
             # focus = 1
-            focus = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7][epoch]
+            focus = foci[epoch]
             desc = f'focus={focus}'
             for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)

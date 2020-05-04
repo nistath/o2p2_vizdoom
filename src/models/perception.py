@@ -2,6 +2,9 @@ import torch
 from models.conv import Conv2dAuto, ConvTranspose2dAuto, BNorm, get_total_stride
 
 
+__all__ = ['Perception', 'InversePerception', 'ConvAutoencoder']
+
+
 def Perception(img_dim, out_features):
     nn = torch.nn
 
@@ -27,28 +30,34 @@ def Perception(img_dim, out_features):
     )
 
 
+def ConvAutoencoder(img_dim):
+    nn = torch.nn
+
+    encoder = nn.Sequential(
+        Conv2dAuto(img_dim[0], 32, 3, 2),
+        nn.ReLU(inplace=True),
+        BNorm(Conv2dAuto(32, 64, 3, 2)),
+        nn.ReLU(inplace=True),
+        BNorm(Conv2dAuto(64, 16, 3, 2)),
+        nn.ReLU(inplace=True),
+        Conv2dAuto(16, 1, 3, 2),
+    )
+
+    decoder = nn.Sequential(
+        ConvTranspose2dAuto(1, 16, 5, 2),
+        nn.ReLU(inplace=True),
+        BNorm(ConvTranspose2dAuto(16, 64, 5, 2)),
+        nn.ReLU(inplace=True),
+        BNorm(ConvTranspose2dAuto(64, 32, 7, 2)),
+        nn.ReLU(inplace=True),
+        ConvTranspose2dAuto(32, img_dim[0], 7, 2),
+        nn.Sigmoid()
+    )
+
+    return encoder, decoder
+
+
 class InversePerception(torch.nn.Module):
-    def __init__(self, img_dim, in_features):
-        super(InversePerception, self).__init__()
-        nn = torch.nn
-
-        agg = img_dim[1] * img_dim[2]
-        self.to_img = nn.Sequential(
-            nn.Linear(in_features, 16 * in_features),
-            nn.ReLU(inplace=True),
-            nn.Linear(16 * in_features, 4 * agg // (16 * in_features)),
-            nn.ReLU(inplace=True),
-            nn.Linear(4 * agg // (16 * in_features), 3 * agg),
-            nn.Sigmoid()
-        )
-        self.img_dim = img_dim
-
-    def forward(self, x):
-        img = self.to_img(x)
-        return img.view((img.shape[0], 3, self.img_dim[1], self.img_dim[2]))
-
-
-class InversePerceptionConv(torch.nn.Module):
     def __init__(self, img_dim, in_features):
         super(InversePerceptionConv, self).__init__()
         nn = torch.nn
