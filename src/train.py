@@ -103,7 +103,7 @@ if __name__ == '__main__':
                     loss = mse_loss(imgs_hat, imgs)
                 losses = (loss.data.item(),)
                 if use_perceptual_loss:
-                    scale = 30 if mask_mse_loss else 1
+                    scale = 0.3
                     perceptual_loss = scale * perceptual_loss_fn.forward(
                         imgs_hat, imgs).mean()
                     loss += perceptual_loss
