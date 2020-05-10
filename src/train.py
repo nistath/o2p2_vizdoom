@@ -122,10 +122,6 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
-        print(trn_idxs.shape)
-        print(val_idxs.shape)
-        exit()
-
     val_num = 4*batch_size if cheat else None
     val_sampler = StratifiedRandomSampler(
         trn_idxs if cheat else val_idxs, idx_class)
