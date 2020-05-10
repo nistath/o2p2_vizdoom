@@ -11,9 +11,9 @@ from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
 
-from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler, StratifiedRandomSampler, IndexedDataset
+from datasets import *
 from improc import *
-from models.loss import LossNetwork, masked_mse_loss
+from models.loss import masked_mse_loss
 from models.perception import *
 from models.inspect import Inspect
 from PerceptualSimilarity.models import PerceptualLoss
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     mask_mse_loss = True
     use_stratification = True
     use_perceptual_loss = True
-    reuse_split = True
+    reuse_split = False
 
     cheat = False
 
@@ -56,14 +56,14 @@ if __name__ == '__main__':
     enc, dec = ConvAutoencoder((3,) + img_shape)
     model = torch.nn.Sequential(enc, dec).to(device)
 
-    if False:
+    if True:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
         else:
             all_idxs = dataset.get_all_idxs()
             random.shuffle(all_idxs)
-            split_point = int(split * len(all_idxs))
+            split_point = find_scene_boundary(all_idxs, int(split * len(all_idxs)))
             trn_idxs = all_idxs[:split_point]
             val_idxs = all_idxs[split_point:]
             del all_idxs
@@ -84,8 +84,8 @@ if __name__ == '__main__':
         model.train()
         print('Starting training.')
 
-        # foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
-        foci = [0.5, 1]
+        foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
+        # foci = [0.5, 1]
         # foci = [0.5, 1, 2, 5, 1, 0.7]
         max_epoch = len(foci)
         for epoch in trange(max_epoch):
@@ -104,7 +104,7 @@ if __name__ == '__main__':
                     loss = mse_loss(imgs_hat, imgs)
                 losses = (loss.data.item(),)
                 if use_perceptual_loss:
-                    scale = 0.3
+                    scale = 0.1
                     perceptual_loss = scale * perceptual_loss_fn.forward(
                         imgs_hat, imgs).mean()
                     loss += perceptual_loss

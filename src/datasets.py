@@ -167,13 +167,11 @@ class IndexedDataset(Dataset):
         return len(self.dataset)
 
 
-# def IndexedDataset(instance):
-#     old_type = type(instance)
+def idxs_in_same_scene(a, b):
+    return a[:2] == b[:2]
 
-#     def getitem(self, idx):
-#         res = old_type.__getitem__(self, idx)
-#         return (*res, idx)
 
-#     instance.__class__ = type(old_type.__name__, (old_type,), {
-#                               '__getitem__': getitem})
-#     return instance
+def find_scene_boundary(idxs, start):
+    for i in range(max(1, start), len(idxs)):
+        if not idxs_in_same_scene(idxs[i - 1], idxs[i]):
+            return i
