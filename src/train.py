@@ -19,10 +19,6 @@ from models.inspect import Inspect
 from PerceptualSimilarity.models import PerceptualLoss
 
 
-def idx_label(idx):
-    return idx[-1]
-
-
 if __name__ == '__main__':
     torch.manual_seed(6969)
     random.seed(6969)
@@ -44,6 +40,7 @@ if __name__ == '__main__':
     use_stratification = True
     use_perceptual_loss = True
     reuse_split = False
+    reuse_weights = True
 
     cheat = False
 
@@ -51,25 +48,25 @@ if __name__ == '__main__':
     batch_size = 32
 
     # num_features = 256
-    # Perception((3,) + img_shape, num_features),
-    # InversePerception((3,) + img_shape, num_features),
+    # enc = Perception((3,) + img_shape, num_features)
+    # dec = InversePerception((3,) + img_shape, num_features)
     enc, dec = ConvAutoencoder((3,) + img_shape)
     model = torch.nn.Sequential(enc, dec).to(device)
 
-    if True:
+    if not reuse_weights:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
         else:
             all_idxs = dataset.get_all_idxs()
             random.shuffle(all_idxs)
-            split_point = find_scene_boundary(all_idxs, int(split * len(all_idxs)))
+            split_point = find_frame_boundary(all_idxs, int(split * len(all_idxs)))
             trn_idxs = all_idxs[:split_point]
             val_idxs = all_idxs[split_point:]
             del all_idxs
 
         if use_stratification:
-            trn_sampler = StratifiedRandomSampler(trn_idxs, idx_label)
+            trn_sampler = StratifiedRandomSampler(trn_idxs, idx_class)
         else:
             trn_sampler = SubsetRandomSampler(trn_idxs)
         trn_dataloader = DataLoader(
@@ -125,9 +122,13 @@ if __name__ == '__main__':
         trn_idxs = torch.load('trn_idxs.pth')
         val_idxs = torch.load('val_idxs.pth')
 
+        print(trn_idxs.shape)
+        print(val_idxs.shape)
+        exit()
+
     val_num = 4*batch_size if cheat else None
     val_sampler = StratifiedRandomSampler(
-        trn_idxs if cheat else val_idxs, idx_label)
+        trn_idxs if cheat else val_idxs, idx_class)
     val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(val_num))
     val_dataloader = DataLoader(
         IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
@@ -147,7 +148,7 @@ if __name__ == '__main__':
 
             imgs_hat = model(imgs)
             reps.append(model.last_rep.cpu().view(imgs.shape[0], -1).numpy())
-            labels.extend(idx_label(idx))
+            labels.extend(idx_class(idx))
 
             grid_img = make_grid(
                 torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])

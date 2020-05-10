@@ -10,6 +10,7 @@ from collections import defaultdict, Counter
 import random
 from copy import copy
 from itertools import chain
+from typing import NamedTuple
 
 from improc import extract_segment
 from torch.utils.data.sampler import Sampler
@@ -39,10 +40,10 @@ class SequentialSampler(list, Sampler):
 
 
 class StratifiedRandomSampler(Sampler):
-    def __init__(self, indices, label_fn, label_probability=None):
+    def __init__(self, indices, class_fn, label_probability=None):
         self.labeled_idxs = defaultdict(list)
-        self.label_fn = label_fn
-        self.labels = set(map(label_fn, indices))
+        self.class_fn = class_fn
+        self.labels = set(map(class_fn, indices))
 
         if label_probability is None:
             P = 1 / len(self.labels)
@@ -53,7 +54,7 @@ class StratifiedRandomSampler(Sampler):
         assert 0.99 < sum(self.label_probability.values()) <= 1.0
 
         for idx in indices:
-            label = label_fn(idx)
+            label = class_fn(idx)
             if self.label_probability.get(label, 0) > 0:
                 self.labeled_idxs[label].append(idx)
 
@@ -74,6 +75,11 @@ class StratifiedRandomSampler(Sampler):
 
     def __len__(self):
         return sum(len(idxs) for idxs in self.labeled_idxs.values())
+
+
+class FrameIdx(NamedTuple):
+    episode: int
+    frame: int
 
 
 class DoomSegmentationDataset(Dataset):
@@ -113,7 +119,14 @@ class DoomSegmentationDataset(Dataset):
 
     @lru_cache(maxsize=1)
     def get_all_idxs(self):
-        return [tuple(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')].sort()
+        return [FrameIdx(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')].sort()
+
+
+class ObjectIdx(NamedTuple):
+    episode: int
+    frame: int
+    label_value: int
+    object_name: str
 
 
 class DoomSegmentedDataset(Dataset):
@@ -141,7 +154,7 @@ class DoomSegmentedDataset(Dataset):
                     state_labels)
                 for label_id, name in labels:
                     if label_id not in self.blacklist:
-                        idxs.append((episode, number, label_id, name))
+                        idxs.append(ObjectIdx(episode, number, label_id, name))
 
         return idxs
 
@@ -167,11 +180,42 @@ class IndexedDataset(Dataset):
         return len(self.dataset)
 
 
-def idxs_in_same_scene(a, b):
+def idxs_in_same_frame(a, b):
     return a[:2] == b[:2]
 
 
-def find_scene_boundary(idxs, start):
+def find_frame_boundary(idxs, start):
     for i in range(max(1, start), len(idxs)):
-        if not idxs_in_same_scene(idxs[i - 1], idxs[i]):
+        if not idxs_in_same_frame(idxs[i - 1], idxs[i]):
             return i
+
+
+def idx_class(idx):
+    return idx.object_name
+
+
+def _corresponds(a, b):
+    if a.label_value == b.label_value:
+        return True
+
+    if a.object_name == b.object_name:
+        return True
+
+    if a.object_name == 'Cacodemon':
+        return b.object_name == 'DeadCacodemon'
+
+    return False
+
+
+def find_correspondences(*scenes):
+    assert len(scenes) == 2
+
+    correspondences = []
+    others = set(scenes[1])
+    for obj in scenes[0]:
+        match = next((other for other in others if _corresponds(obj, other)), None)
+        if match is not None:
+            others.remove(match)
+        correspondences.append(obj, match)
+
+    return correspondences
