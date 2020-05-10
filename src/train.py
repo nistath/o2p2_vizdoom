@@ -169,4 +169,4 @@ if __name__ == '__main__':
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
     plt.legend()
-    plt.show()
+    plt.savefig(val_path.joinpath('tsne.png'))
