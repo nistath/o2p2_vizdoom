@@ -153,3 +153,27 @@ class DoomSegmentedDataset(Dataset):
 
         screen, segmap = self.dataset[(episode, number)]
         return extract_segment(screen, segmap, label_id)
+
+
+class IndexedDataset(Dataset):
+    def __init__(self, dataset):
+        assert isinstance(dataset, Dataset)
+        self.dataset = dataset
+
+    def __getitem__(self, idx):
+        return (idx, self.dataset[idx])
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+# def IndexedDataset(instance):
+#     old_type = type(instance)
+
+#     def getitem(self, idx):
+#         res = old_type.__getitem__(self, idx)
+#         return (*res, idx)
+
+#     instance.__class__ = type(old_type.__name__, (old_type,), {
+#                               '__getitem__': getitem})
+#     return instance

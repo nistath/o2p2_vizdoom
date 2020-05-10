@@ -1,1 +1,3 @@
 -r src/PerceptualSimilarity/requirements.txt
+MulticoreTSNE
+scikit-learn

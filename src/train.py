@@ -11,10 +11,11 @@ from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
 
-from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler, StratifiedRandomSampler
+from datasets import DoomSegmentationDataset, DoomSegmentedDataset, SequentialSampler, StratifiedRandomSampler, IndexedDataset
 from improc import *
 from models.loss import LossNetwork, masked_mse_loss
 from models.perception import *
+from models.inspect import Inspect
 from PerceptualSimilarity.models import PerceptualLoss
 
 
@@ -50,13 +51,12 @@ if __name__ == '__main__':
     batch_size = 32
 
     # num_features = 256
-        # Perception((3,) + img_shape, num_features),
-        # InversePerception((3,) + img_shape, num_features),
-    model = torch.nn.Sequential(
-        *ConvAutoencoder((3,) + img_shape),
-    ).to(device)
+    # Perception((3,) + img_shape, num_features),
+    # InversePerception((3,) + img_shape, num_features),
+    enc, dec = ConvAutoencoder((3,) + img_shape)
+    model = torch.nn.Sequential(enc, dec).to(device)
 
-    if True:
+    if False:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
@@ -85,7 +85,8 @@ if __name__ == '__main__':
         print('Starting training.')
 
         # foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
-        foci = [0.5, 1, 2, 5, 1, 0.7]
+        foci = [0.5, 1]
+        # foci = [0.5, 1, 2, 5, 1, 0.7]
         max_epoch = len(foci)
         for epoch in trange(max_epoch):
             # focus = 1
@@ -129,19 +130,43 @@ if __name__ == '__main__':
         trn_idxs if cheat else val_idxs, idx_label)
     val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(val_num))
     val_dataloader = DataLoader(
-        dataset, batch_size=batch_size, num_workers=0, sampler=val_sampler)
+        IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
 
     if val_path.exists():
         shutil.rmtree(val_path)
     val_path.mkdir()
 
+    model = Inspect(enc, dec).to(device)
+
+    reps = []
+    labels = []
     model.eval()
     with torch.no_grad():
-        for i, (imgs, _) in enumerate(tqdm(val_dataloader)):
+        for i, (idx, (imgs, _)) in enumerate(tqdm(val_dataloader)):
             imgs = imgs.to(device)
 
             imgs_hat = model(imgs)
+            reps.append(model.last_rep.cpu().view(imgs.shape[0], -1).numpy())
+            labels.extend(idx_label(idx))
 
             grid_img = make_grid(
                 torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])
             tensor2pil(grid_img).save(val_path.joinpath(f'{i}.png'))
+
+    # from tsnecuda import TSNE
+    from MulticoreTSNE import MulticoreTSNE as TSNE
+    from sklearn.decomposition import PCA
+    reps = np.vstack(reps)
+    # reps = PCA(n_components=50, copy=False).fit_transform(reps)
+    reps = TSNE(n_components=2, perplexity=30,
+                learning_rate=10, n_jobs=10).fit_transform(reps)
+
+    for label in set(labels):
+        idxs = [i for i, x in enumerate(labels) if x == label]
+        plt.scatter(reps[idxs, 0], reps[idxs, 1], label=label, marker='.')
+
+    plt.rc('font', family='serif')
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+    plt.legend()
+    plt.show()
