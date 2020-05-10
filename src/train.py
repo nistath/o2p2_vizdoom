@@ -40,7 +40,7 @@ if __name__ == '__main__':
     use_stratification = True
     use_perceptual_loss = True
     reuse_split = False
-    reuse_weights = True
+    reuse_weights = False
 
     cheat = False
 

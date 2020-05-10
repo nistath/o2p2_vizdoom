@@ -41,6 +41,7 @@ def ConvAutoencoder(img_dim):
         BNorm(Conv2dAuto(64, 16, 3, 2)),
         nn.ReLU(inplace=True),
         Conv2dAuto(16, 1, 3, 2),
+        nn.Tanh()
     )
 
     decoder = nn.Sequential(
