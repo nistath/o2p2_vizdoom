@@ -36,7 +36,7 @@ if __name__ == '__main__':
     print(f'Using device {device}.')
 
     experiment_name = datetime.now().isoformat()
-    experiment_name += '_linear_noperceptual'
+    experiment_name += '_betterlinear_noperceptual'
     results_path = Path('/home/nistath/Desktop/val/')
     val_path = results_path.joinpath(experiment_name)
     load_path = results_path.joinpath('2020-05-12T00:23:10.810421_perceptual/save')
