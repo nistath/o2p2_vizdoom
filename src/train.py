@@ -36,11 +36,10 @@ if __name__ == '__main__':
     print(f'Using device {device}.')
 
     experiment_name = datetime.now().isoformat()
-    experiment_name += 'noperceptual'
+    experiment_name += '_linear_noperceptual'
     results_path = Path('/home/nistath/Desktop/val/')
     val_path = results_path.joinpath(experiment_name)
-    load_path = val_path.joinpath('load')
-    load_path = results_path.joinpath('perceptual_2020-05-12T00:23:10.810421/load')
+    load_path = results_path.joinpath('2020-05-12T00:23:10.810421_perceptual/save')
     save_path = val_path.joinpath('save')
 
     img_shape = (240, 320)
@@ -56,11 +55,12 @@ if __name__ == '__main__':
     reuse_autoencoder = False  # implies split will be reused
     validate_autoencoder = True
 
-    if val_path.exists() and not reuse_autoencoder:
-        raise ValueError('will not overwrite')
-    val_path.mkdir(exist_ok=True, parents=True)
-    load_path.mkdir(exist_ok=True, parents=True)
-    save_path.mkdir(exist_ok=True, parents=True)
+    if reuse_autoencoder:
+        if val_path.exists():
+            raise ValueError('will not overwrite')
+    else:
+        val_path.mkdir(exist_ok=True, parents=True)
+        save_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
 
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     # num_features = 256
     # enc = Perception((3,) + img_shape, num_features)
     # dec = InversePerception((3,) + img_shape, num_features)
-    enc, dec = ConvAutoencoder((3,) + img_shape)
+    enc, dec = ConvAutoencoder((3,) + img_shape, have_linear=True)
     model = torch.nn.Sequential(enc, dec).to(device)
 
     if not reuse_autoencoder:
@@ -121,6 +121,7 @@ if __name__ == '__main__':
         # foci = [0.5, 1]
         # foci = [0.5, 1, 2, 5, 1, 0.7]
         max_epoch = len(foci)
+        model.train()
         for epoch in trange(max_epoch):
             # focus = 1
             focus = foci[epoch]
@@ -202,3 +203,9 @@ if __name__ == '__main__':
         plt.gca().get_yaxis().set_visible(False)
         plt.legend()
         plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
+
+    # Do prediction
+
+    # Freeze encoder weights
+    for param in enc.parameters():
+        param.requires_grad = False

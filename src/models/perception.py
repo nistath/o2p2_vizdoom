@@ -5,6 +5,15 @@ from models.conv import Conv2dAuto, ConvTranspose2dAuto, BNorm, get_total_stride
 __all__ = ['Perception', 'InversePerception', 'ConvAutoencoder']
 
 
+class View(torch.nn.Module):
+    def __init__(self, *args):
+        super(View, self).__init__()
+        self.shape = args
+
+    def forward(self, x):
+        return x.view(self.shape)
+
+
 def Perception(img_dim, out_features):
     nn = torch.nn
 
@@ -30,8 +39,18 @@ def Perception(img_dim, out_features):
     )
 
 
-def ConvAutoencoder(img_dim):
+def ConvAutoencoder(img_dim, have_linear=False):
     nn = torch.nn
+
+    if have_linear:
+        encoder_suffix = [
+            View(-1, 300),
+            nn.Linear(300, 300),
+            View(-1, 1, 15, 20),
+        ]
+    else:
+        encoder_suffix = []
+    encoder_suffix.append(nn.Tanh())
 
     encoder = nn.Sequential(
         Conv2dAuto(img_dim[0], 32, 3, 2),
@@ -41,7 +60,7 @@ def ConvAutoencoder(img_dim):
         BNorm(Conv2dAuto(64, 16, 3, 2)),
         nn.ReLU(inplace=True),
         Conv2dAuto(16, 1, 3, 2),
-        nn.Tanh()
+        *encoder_suffix
     )
 
     decoder = nn.Sequential(
