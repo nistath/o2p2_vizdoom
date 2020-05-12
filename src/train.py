@@ -37,9 +37,11 @@ if __name__ == '__main__':
 
     experiment_name = datetime.now().isoformat()
     experiment_name += 'noperceptual'
-    experiment_name = 'perceptual_2020-05-12T00:23:10.810421'
-    val_path = Path('/home/nistath/Desktop/val/').joinpath(experiment_name)
+    results_path = Path('/home/nistath/Desktop/val/')
+    val_path = results_path.joinpath(experiment_name)
     load_path = val_path.joinpath('load')
+    load_path = results_path.joinpath('perceptual_2020-05-12T00:23:10.810421/load')
+    save_path = val_path.joinpath('save')
 
     img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run2/states.npz',
@@ -49,15 +51,16 @@ if __name__ == '__main__':
 
     mask_mse_loss = True
     use_stratification = True
-    use_perceptual_loss = True
+    use_perceptual_loss = False
     reuse_split = True
-    reuse_autoencoder = True  # implies split will be reused
+    reuse_autoencoder = False  # implies split will be reused
     validate_autoencoder = True
 
     if val_path.exists() and not reuse_autoencoder:
         raise ValueError('will not overwrite')
     val_path.mkdir(exist_ok=True, parents=True)
     load_path.mkdir(exist_ok=True, parents=True)
+    save_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
 
@@ -146,10 +149,10 @@ if __name__ == '__main__':
 
                 tqdm.write(f'Loss: {losses}')
 
-        torch.save(model.state_dict(), load_path.joinpath('model.pth'))
+        torch.save(model.state_dict(), save_path.joinpath('model.pth'))
         if not reuse_split:
-            torch.save(trn_idxs, load_path.joinpath('trn_idxs.pth'))
-            torch.save(val_idxs, load_path.joinpath('val_idxs.pth'))
+            torch.save(trn_idxs, save_path.joinpath('trn_idxs.pth'))
+            torch.save(val_idxs, save_path.joinpath('val_idxs.pth'))
     else:
         model.load_state_dict(torch.load(load_path.joinpath('model.pth')))
         trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
