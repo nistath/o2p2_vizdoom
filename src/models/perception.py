@@ -42,7 +42,7 @@ def Perception(img_dim, out_features):
 def ConvAutoencoder(img_dim, have_linear=False):
     nn = torch.nn
 
-    encoder_suffix = [Conv2dAuto(16, 1, 3, 2),]
+    encoder_suffix = [Conv2dAuto(128, 1, 3, 2),]
     if have_linear:
         encoder_suffix[0] = BNorm(encoder_suffix[0])
         encoder_suffix += [
@@ -59,19 +59,19 @@ def ConvAutoencoder(img_dim, have_linear=False):
         nn.ReLU(inplace=True),
         BNorm(Conv2dAuto(32, 64, 3, 2)),
         nn.ReLU(inplace=True),
-        BNorm(Conv2dAuto(64, 16, 3, 2)),
+        BNorm(Conv2dAuto(64, 128, 3, 2)),
         nn.ReLU(inplace=True),
         *encoder_suffix
     )
 
     decoder = nn.Sequential(
-        ConvTranspose2dAuto(1, 16, 5, 2),
+        ConvTranspose2dAuto(1, 128, 5, 2),
         nn.ReLU(inplace=True),
-        BNorm(ConvTranspose2dAuto(16, 64, 5, 2)),
+        BNorm(ConvTranspose2dAuto(128, 64, 5, 2)),
         nn.ReLU(inplace=True),
         BNorm(ConvTranspose2dAuto(64, 32, 7, 2)),
         nn.ReLU(inplace=True),
-        ConvTranspose2dAuto(32, img_dim[0], 7, 2),
+        ConvTranspose2dAuto(32, img_dim[0], 5, 2),
         nn.Sigmoid()
     )
 

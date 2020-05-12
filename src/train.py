@@ -28,21 +28,23 @@ def cutoff_idxs(idxs, max_len):
 
 
 if __name__ == '__main__':
-    torch.manual_seed(6969)
-    random.seed(6969)
-    np.random.seed(6969)
+    # torch.manual_seed(6969)
+    # random.seed(6969)
+    # np.random.seed(6969)
 
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
     print(f'Using device {device}.')
 
     experiment_name = datetime.now().isoformat()
-    experiment_name += '_medium_filtersok_preddict'
+    experiment_name += '_predict_pls_work'
     results_path = Path('/home/nistath/Desktop/val/')
     val_path = results_path.joinpath(experiment_name)
     load_path = results_path.joinpath(
-        '2020-05-12T00:23:10.810421_perceptual/save')
+        '2020-05-12T13:22:17.994781_pls_work/save')
     save_path = val_path.joinpath('save')
+
+    predictor_path = results_path.joinpath('2020-05-12T13:38:22.827159_predict_pls_work/save/predictor.pth')
 
     img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run2/states.npz',
@@ -57,11 +59,13 @@ if __name__ == '__main__':
     reuse_autoencoder = True  # implies split will be reused
     validate_autoencoder = False
 
+    reuse_predictor = True
+    validate_predictor = True
+
     if reuse_autoencoder:
         if val_path.exists():
             raise ValueError('will not overwrite')
-    else:
-        save_path.mkdir(exist_ok=True, parents=True)
+    save_path.mkdir(exist_ok=True, parents=True)
     val_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
@@ -70,6 +74,7 @@ if __name__ == '__main__':
     max_len_trn = 3000
     max_len_val = None
     max_val_num = 1000
+    p_max_val_num = 200
     batch_size = 32
     p_batch_size = 32 // 4
 
@@ -168,7 +173,7 @@ if __name__ == '__main__':
         val_sampler = SequentialSampler(
             val_sampler.as_unshuffled_list(val_num))
         val_dataloader = DataLoader(
-            IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
+            IndexedDataset(dataset), batch_size=batch_size, num_workers=4, sampler=val_sampler)
 
         model = Inspect(enc, dec).to(device)
 
@@ -206,7 +211,6 @@ if __name__ == '__main__':
         plt.legend()
         plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
 
-    exit()
     # Do prediction
     print('PREDICTION TIME BABY')
     predictor = Predictor(300).to(device)
@@ -214,6 +218,10 @@ if __name__ == '__main__':
     for param in encoder.parameters():
         param.requires_grad = False
     encoder.eval()
+    decoder = dec
+    for param in decoder.parameters():
+        param.requires_grad = False
+    decoder.eval()
 
     p_dataset = PredictionDataset(dataset, trn_idxs)
     p_trn_idxs = p_dataset.get_all_idxs()
@@ -225,25 +233,63 @@ if __name__ == '__main__':
     p_trn_dataloader = DataLoader(
         p_dataset, batch_size=p_batch_size, num_workers=4, sampler=p_trn_sampler)
 
-    p_mse_loss = torch.nn.MSELoss()
-    p_opt = torch.optim.Adam(predictor.parameters(), lr=1e-3)
+    if not reuse_predictor:
+        p_mse_loss = torch.nn.MSELoss()
+        p_opt = torch.optim.Adam(predictor.parameters(), lr=1e-3)
 
-    p_max_epoch = 4
-    for epoch in trange(p_max_epoch):
-        desc = 'pred'
-        for (s_imgs, s_masks), (t_imgs, t_masks) in tqdm(p_trn_dataloader, desc=desc):
-            s_imgs = s_imgs.to(device)
-            t_imgs = t_imgs.to(device)
+        p_max_epoch = 3
+        for epoch in trange(p_max_epoch):
+            desc = 'pred'
+            for (s_imgs, s_masks), (t_imgs, t_masks) in tqdm(p_trn_dataloader, desc=desc):
+                s_imgs = s_imgs.to(device)
+                t_imgs = t_imgs.to(device)
 
-            t_objs = encoder.forward(t_imgs)
-            t_objs_hat = predictor(encoder.forward(s_imgs))
+                s_objs = encoder.forward(s_imgs)
+                t_objs = encoder.forward(t_imgs)
+                t_hat_objs = predictor(s_objs)
 
-            p_loss = p_mse_loss(t_objs_hat, t_objs)
+                # s_imgs_hat = decoder.forward(s_objs)
+                t_imgs_hat = decoder.forward(t_objs)
+                t_hat_imgs_hat = decoder.forward(t_hat_objs)
 
-            p_opt.zero_grad()
-            p_loss.backward()
-            p_opt.step()
+                p_loss = p_mse_loss(t_hat_objs, t_objs)
 
-            tqdm.write(f'Loss: {p_loss.item()}')
+                p_opt.zero_grad()
+                p_loss.backward()
+                p_opt.step()
 
-    torch.save(predictor.state_dict(), save_path.joinpath('predictor.pth'))
+                tqdm.write(f'Loss: {p_loss.item()}')
+
+        torch.save(predictor.state_dict(), save_path.joinpath('predictor.pth'))
+    else:
+        predictor.load_state_dict(torch.load(predictor_path))
+
+    if validate_predictor:
+        p_val_dataset = p_dataset if cheat else PredictionDataset(dataset, val_idxs)
+        p_val_idxs = p_val_dataset.get_all_idxs()
+
+        p_val_num = 4*p_batch_size if cheat else p_max_val_num
+        p_val_sampler = StratifiedRandomSampler(
+            p_trn_idxs if cheat else p_val_idxs, idx_class)
+        p_val_sampler = SequentialSampler(
+            p_val_sampler.as_unshuffled_list(p_val_num))
+        p_val_dataloader = DataLoader(
+            p_val_dataset, batch_size=p_batch_size, num_workers=4, sampler=p_val_sampler)
+
+        predictor.eval()
+        with torch.no_grad():
+            for i, ((s_imgs, s_masks), (t_imgs, t_masks)) in enumerate(tqdm(p_val_dataloader)):
+                s_imgs = s_imgs.to(device)
+                t_imgs = t_imgs.to(device)
+
+                s_objs = encoder.forward(s_imgs)
+                t_objs = encoder.forward(t_imgs)
+                t_hat_objs = predictor(s_objs)
+
+                s_imgs_hat = decoder.forward(s_objs)
+                t_imgs_hat = decoder.forward(t_objs)
+                t_hat_imgs_hat = decoder.forward(t_hat_objs)
+
+                grid_img = make_grid(
+                    torch.cat((s_imgs.cpu(), s_imgs_hat.cpu(), t_imgs.cpu(), t_hat_imgs_hat.cpu(), t_imgs_hat.cpu())), nrow=s_imgs.shape[0])
+                tensor2pil(grid_img).save(val_path.joinpath(f'pred_{i}.png'))
