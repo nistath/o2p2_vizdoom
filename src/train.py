@@ -20,6 +20,12 @@ from models.inspect import Inspect
 from PerceptualSimilarity.models import PerceptualLoss
 
 
+def cutoff_idxs(idxs, max_len):
+    if max_len is None:
+        return idxs
+    return idxs[:find_frame_boundary(idxs, max_len)]
+
+
 if __name__ == '__main__':
     torch.manual_seed(6969)
     random.seed(6969)
@@ -34,8 +40,8 @@ if __name__ == '__main__':
     load_path = val_path.joinpath('load')
 
     img_shape = (240, 320)
-    dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
-                                   '/home/nistath/Desktop/run1/images/', desired_size=img_shape,
+    dataset = DoomSegmentedDataset('/home/nistath/Desktop/run2/states.npz',
+                                   '/home/nistath/Desktop/run2/images/', desired_size=img_shape,
                                    #    blacklist=(0, 1,)
                                    )
 
@@ -43,17 +49,20 @@ if __name__ == '__main__':
     use_stratification = True
     use_perceptual_loss = True
     reuse_split = False
-    reuse_weights = False  # implies split will be reused
+    reuse_autoencoder = False  # implies split will be reused
     validate_autoencoder = True
 
-    if val_path.exists() and not reuse_weights:
+    if val_path.exists() and not reuse_autoencoder:
         raise ValueError('will not overwrite')
     val_path.mkdir(exist_ok=True, parents=True)
     load_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
 
-    split = 0.9
+    split = 0.5
+    max_len_trn = 3000
+    max_len_val = None
+    max_val_num = 1000
     batch_size = 32
 
     # num_features = 256
@@ -62,7 +71,7 @@ if __name__ == '__main__':
     enc, dec = ConvAutoencoder((3,) + img_shape)
     model = torch.nn.Sequential(enc, dec).to(device)
 
-    if not reuse_weights:
+    if not reuse_autoencoder:
         if reuse_split:
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
@@ -70,14 +79,18 @@ if __name__ == '__main__':
             if False:
                 all_idxs = dataset.get_all_idxs()
                 random.shuffle(all_idxs)
-                split_point = find_frame_boundary(all_idxs, int(split * len(all_idxs)))
+                split_point = find_frame_boundary(
+                    all_idxs, int(split * len(all_idxs)))
                 trn_idxs = all_idxs[:split_point]
                 val_idxs = all_idxs[split_point:]
                 del all_idxs
             else:
-                episode_keys = dataset.get_episode_keys()
-                trn_idxs = dataset.get_all_idxs(episode_keys[:-1])
-                val_idxs = dataset.get_all_idxs((episode_keys[-1],))
+                episode_keys = shuffle(list(dataset.get_episode_keys()))
+                split_point = int(split * len(episode_keys))
+                trn_idxs = cutoff_idxs(dataset.get_all_idxs(
+                    shuffle(episode_keys[:split_point])), max_len_trn)
+                val_idxs = cutoff_idxs(dataset.get_all_idxs(
+                    shuffle(episode_keys[split_point:])), max_len_val)
 
         print('Train:', len(trn_idxs))
         print('Validation:', len(val_idxs))
@@ -141,10 +154,11 @@ if __name__ == '__main__':
         val_idxs = torch.load(load_path.joinpath('val_idxs.pth'))
 
     if validate_autoencoder:
-        val_num = 4*batch_size if cheat else None
+        val_num = 4*batch_size if cheat else max_val_num
         val_sampler = StratifiedRandomSampler(
             trn_idxs if cheat else val_idxs, idx_class)
-        val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(val_num))
+        val_sampler = SequentialSampler(
+            val_sampler.as_unshuffled_list(val_num))
         val_dataloader = DataLoader(
             IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
 
@@ -158,7 +172,8 @@ if __name__ == '__main__':
                 imgs = imgs.to(device)
 
                 imgs_hat = model(imgs)
-                reps.append(model.last_rep.cpu().view(imgs.shape[0], -1).numpy())
+                reps.append(model.last_rep.cpu().view(
+                    imgs.shape[0], -1).numpy())
                 labels.extend(idx_class(idx))
 
                 grid_img = make_grid(

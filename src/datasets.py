@@ -142,7 +142,6 @@ class DoomSegmentedDataset(Dataset):
         self.dataset = DoomSegmentationDataset(*args, **kwargs)
         self.blacklist = blacklist
 
-    @lru_cache(maxsize=1)
     def get_all_idxs(self, whitelist=AlwaysContains()):
         idxs = []
         for episode_key in self.states:
