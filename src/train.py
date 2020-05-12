@@ -44,7 +44,7 @@ if __name__ == '__main__':
         '2020-05-12T13:22:17.994781_pls_work/save')
     save_path = val_path.joinpath('save')
 
-    predictor_path = results_path.joinpath('2020-05-12T13:38:22.827159_predict_pls_work/save/predictor.pth')
+    predictor_path = results_path.joinpath('2020-05-12T13:55:26.403096_predict_pls_work/save/predictor.pth')
 
     img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run2/states.npz',
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     reuse_autoencoder = True  # implies split will be reused
     validate_autoencoder = False
 
-    reuse_predictor = True
+    reuse_predictor = False
     validate_predictor = True
 
     if reuse_autoencoder:
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         # foci = [0.5, 1, 2, 5, 1, 0.7]
         max_epoch = len(foci)
         model.train()
-        for epoch in trange(max_epoch):
+        for epoch in trange(max_epoch, desc='autoencoder'):
             # focus = 1
             focus = foci[epoch]
             desc = f'focus={focus}'
@@ -237,10 +237,13 @@ if __name__ == '__main__':
         p_mse_loss = torch.nn.MSELoss()
         p_opt = torch.optim.Adam(predictor.parameters(), lr=1e-3)
 
-        p_max_epoch = 3
-        for epoch in trange(p_max_epoch):
-            desc = 'pred'
+        foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
+        p_max_epoch = len(foci)
+        for epoch in trange(p_max_epoch, desc='pred'):
+            focus = foci[epoch]
+            desc = f'focus={focus}'
             for (s_imgs, s_masks), (t_imgs, t_masks) in tqdm(p_trn_dataloader, desc=desc):
+                t_masks = t_masks.to(device)
                 s_imgs = s_imgs.to(device)
                 t_imgs = t_imgs.to(device)
 
@@ -249,16 +252,20 @@ if __name__ == '__main__':
                 t_hat_objs = predictor(s_objs)
 
                 # s_imgs_hat = decoder.forward(s_objs)
-                t_imgs_hat = decoder.forward(t_objs)
+                # t_imgs_hat = decoder.forward(t_objs)
                 t_hat_imgs_hat = decoder.forward(t_hat_objs)
 
-                p_loss = p_mse_loss(t_hat_objs, t_objs)
+                obj_loss = p_mse_loss(t_hat_objs, t_objs)
+                mask_loss = masked_mse_loss(t_hat_imgs_hat, t_imgs, t_masks, focus=focus)
 
+                losses = (obj_loss.item(), mask_loss.item())
+
+                p_loss = obj_loss + mask_loss
                 p_opt.zero_grad()
                 p_loss.backward()
                 p_opt.step()
 
-                tqdm.write(f'Loss: {p_loss.item()}')
+                tqdm.write(f'Loss: {losses}')
 
         torch.save(predictor.state_dict(), save_path.joinpath('predictor.pth'))
     else:
