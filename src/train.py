@@ -40,7 +40,8 @@ if __name__ == '__main__':
     experiment_name += '_medium_filtersok_preddict'
     results_path = Path('/home/nistath/Desktop/val/')
     val_path = results_path.joinpath(experiment_name)
-    load_path = results_path.joinpath('2020-05-12T00:23:10.810421_perceptual/save')
+    load_path = results_path.joinpath(
+        '2020-05-12T00:23:10.810421_perceptual/save')
     save_path = val_path.joinpath('save')
 
     img_shape = (240, 320)
@@ -70,6 +71,7 @@ if __name__ == '__main__':
     max_len_val = None
     max_val_num = 1000
     batch_size = 32
+    p_batch_size = 32 // 4
 
     # num_features = 256
     # enc = Perception((3,) + img_shape, num_features)
@@ -204,7 +206,44 @@ if __name__ == '__main__':
         plt.legend()
         plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
 
+    exit()
     # Do prediction
-    predictor = EncoderPredictor(300, enc)
+    print('PREDICTION TIME BABY')
+    predictor = Predictor(300).to(device)
+    encoder = enc
+    for param in encoder.parameters():
+        param.requires_grad = False
+    encoder.eval()
 
+    p_dataset = PredictionDataset(dataset, trn_idxs)
+    p_trn_idxs = p_dataset.get_all_idxs()
+    if use_stratification:
+        p_trn_sampler = StratifiedRandomSampler(p_trn_idxs, idx_class)
+    else:
+        p_trn_sampler = SubsetRandomSampler(p_trn_idxs)
 
+    p_trn_dataloader = DataLoader(
+        p_dataset, batch_size=p_batch_size, num_workers=4, sampler=p_trn_sampler)
+
+    p_mse_loss = torch.nn.MSELoss()
+    p_opt = torch.optim.Adam(predictor.parameters(), lr=1e-3)
+
+    p_max_epoch = 4
+    for epoch in trange(p_max_epoch):
+        desc = 'pred'
+        for (s_imgs, s_masks), (t_imgs, t_masks) in tqdm(p_trn_dataloader, desc=desc):
+            s_imgs = s_imgs.to(device)
+            t_imgs = t_imgs.to(device)
+
+            t_objs = encoder.forward(t_imgs)
+            t_objs_hat = predictor(encoder.forward(s_imgs))
+
+            p_loss = p_mse_loss(t_objs_hat, t_objs)
+
+            p_opt.zero_grad()
+            p_loss.backward()
+            p_opt.step()
+
+            tqdm.write(f'Loss: {p_loss.item()}')
+
+    torch.save(predictor.state_dict(), save_path.joinpath('predictor.pth'))

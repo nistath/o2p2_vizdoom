@@ -21,21 +21,4 @@ class Predictor(torch.nn.Module):
         Flatten it.
         '''
         x = x.view(x.shape[0], -1)
-        return self.mlp(x)
-
-
-class EncoderPredictor(torch.nn.Module):
-    def __init__(self, feature_size, enc):
-        super(EncoderPredictor, self).__init__()
-        self.predictor = Predictor(feature_size)
-
-        # Freeze encoder weights
-        for param in enc.parameters():
-            param.requires_grad = False
-        self.encoder = enc
-        self.encoder.eval()
-
-    def forward(self, x):
-        encoding = self.encoder(x)
-        prediction = self.predictor(encoding)
-        return prediction.view(x.shape[0], 1, 15, 20)
+        return self.mlp(x).view(x.shape[0], 1, 15, 20)

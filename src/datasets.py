@@ -201,6 +201,8 @@ def find_frame_boundary(idxs, start):
         if not idxs_in_same_frame(idxs[i - 1], idxs[i]):
             return i
 
+    return len(idxs)
+
 
 def idx_class(idx):
     return idx.object_name
@@ -226,8 +228,45 @@ def find_correspondences(*scenes):
     others = set(scenes[1])
     for obj in scenes[0]:
         match = next((other for other in others if _corresponds(obj, other)), None)
+        # TODO: ya might wanna assert we're not ambiguous here
         if match is not None:
             others.remove(match)
-        correspondences.append(obj, match)
+        correspondences.append((obj, match))
 
     return correspondences
+
+
+class PredictionDataset(Dataset):
+    def __init__(self, dataset: DoomSegmentedDataset, idxs):
+        self.dataset = dataset
+        self.idxs = idxs
+
+        scenes = []
+        frame_start = 0
+        while frame_start < len(idxs):
+            frame_end = find_frame_boundary(idxs, frame_start + 1)
+            scenes.append(idxs[frame_start:frame_end])
+            frame_start = frame_end
+        self.scenes = scenes
+
+        # map from idx to idx
+        correspondences = {}
+        for i in range(1, len(scenes)):
+            if scenes[i - 1][0].episode != scenes[i][0].episode:
+                continue
+
+            kv = find_correspondences(scenes[i - 1], scenes[i])
+            correspondences.update((x for x in kv if x[1] is not None))
+        self.correspondences = correspondences
+
+        assert all(isinstance(x, ObjectIdx) for x in self.correspondences.keys())
+        # TODO: Remove below if you want obj disappearance
+        assert all(isinstance(x, ObjectIdx) for x in self.correspondences.values())
+
+    def get_all_idxs(self):
+        return self.correspondences.keys()
+
+    def __getitem__(self, idx):
+        start = self.dataset[idx]
+        target = self.dataset[self.correspondences[idx]]
+        return start, target
