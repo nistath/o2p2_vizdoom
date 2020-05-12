@@ -36,6 +36,8 @@ if __name__ == '__main__':
     print(f'Using device {device}.')
 
     experiment_name = datetime.now().isoformat()
+    experiment_name += 'noperceptual'
+    experiment_name = 'perceptual_2020-05-12T00:23:10.810421'
     val_path = Path('/home/nistath/Desktop/val/').joinpath(experiment_name)
     load_path = val_path.joinpath('load')
 
@@ -48,8 +50,8 @@ if __name__ == '__main__':
     mask_mse_loss = True
     use_stratification = True
     use_perceptual_loss = True
-    reuse_split = False
-    reuse_autoencoder = False  # implies split will be reused
+    reuse_split = True
+    reuse_autoencoder = True  # implies split will be reused
     validate_autoencoder = True
 
     if val_path.exists() and not reuse_autoencoder:
@@ -73,8 +75,8 @@ if __name__ == '__main__':
 
     if not reuse_autoencoder:
         if reuse_split:
-            trn_idxs = torch.load('trn_idxs.pth')
-            val_idxs = torch.load('val_idxs.pth')
+            trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
+            val_idxs = torch.load(load_path.joinpath('val_idxs.pth'))
         else:
             if False:
                 all_idxs = dataset.get_all_idxs()
@@ -144,10 +146,10 @@ if __name__ == '__main__':
 
                 tqdm.write(f'Loss: {losses}')
 
-        torch.save(model.state_dict(), 'model.pth')
+        torch.save(model.state_dict(), load_path.joinpath('model.pth'))
         if not reuse_split:
-            torch.save(trn_idxs, 'trn_idxs.pth')
-            torch.save(val_idxs, 'val_idxs.pth')
+            torch.save(trn_idxs, load_path.joinpath('trn_idxs.pth'))
+            torch.save(val_idxs, load_path.joinpath('val_idxs.pth'))
     else:
         model.load_state_dict(torch.load(load_path.joinpath('model.pth')))
         trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
@@ -184,9 +186,9 @@ if __name__ == '__main__':
         from MulticoreTSNE import MulticoreTSNE as TSNE
         from sklearn.decomposition import PCA
         reps = np.vstack(reps)
-        reps = PCA(n_components=2, copy=False).fit_transform(reps)
-        # reps = TSNE(n_components=2, perplexity=30,
-        #             learning_rate=10, n_jobs=10).fit_transform(reps)
+        # reps = PCA(n_components=2, copy=False).fit_transform(reps)
+        reps = TSNE(n_components=2, perplexity=30,
+                    learning_rate=10, n_jobs=10).fit_transform(reps)
 
         for label in set(labels):
             idxs = [i for i, x in enumerate(labels) if x == label]
@@ -196,4 +198,4 @@ if __name__ == '__main__':
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
         plt.legend()
-        plt.savefig(val_path.joinpath('tsne.png'))
+        plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
