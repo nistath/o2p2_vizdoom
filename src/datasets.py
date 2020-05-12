@@ -106,20 +106,22 @@ class DoomSegmentationDataset(Dataset):
     def __len__(self):
         return len(self.png_dir.glob('*_screen.png'))
 
-    def __getitem__(self, idx):
+    def _get_pil_img(self, idx, name):
         episode, number = idx
+        return Image.open(self.png_dir.joinpath(f'{episode}_{number}_{name}.png'))
 
-        def get_pil_img(name):
-            return Image.open(self.png_dir.joinpath(f'{episode}_{number}_{name}.png'))
-
-        screen = self.screen_tf(get_pil_img('screen'))
-        segmap = self.segmap_tf(get_pil_img('labels'))
+    # @lru_cache(maxsize=20)
+    def __getitem__(self, idx):
+        screen = self.screen_tf(self._get_pil_img(idx, 'screen'))
+        segmap = self.segmap_tf(self._get_pil_img(idx, 'labels'))
 
         return screen, segmap
 
     @lru_cache(maxsize=1)
     def get_all_idxs(self):
-        return [FrameIdx(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')].sort()
+        idxs = [FrameIdx(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')]
+        idx.sort()
+        return idxs
 
 
 class ObjectIdx(NamedTuple):
@@ -129,6 +131,11 @@ class ObjectIdx(NamedTuple):
     object_name: str
 
 
+class AlwaysContains:
+    def __contains__(self, x):
+        return True
+
+
 class DoomSegmentedDataset(Dataset):
     def __init__(self, states, *args, blacklist=tuple(), **kwargs):
         self.states = np.load(states, allow_pickle=True)
@@ -136,10 +143,13 @@ class DoomSegmentedDataset(Dataset):
         self.blacklist = blacklist
 
     @lru_cache(maxsize=1)
-    def get_all_idxs(self):
+    def get_all_idxs(self, whitelist=AlwaysContains()):
         idxs = []
         for episode_key in self.states:
             episode = int(episode_key)
+            if episode_key not in whitelist:
+                continue
+
             for state in self.states[episode_key]:
                 number = state['number'].item()
                 total = len(state['labels'].item()) + 1
@@ -157,6 +167,9 @@ class DoomSegmentedDataset(Dataset):
                         idxs.append(ObjectIdx(episode, number, label_id, name))
 
         return idxs
+
+    def get_episode_keys(self):
+        return tuple(self.states.keys())
 
     def __getitem__(self, idx):
         if len(idx) == 3:

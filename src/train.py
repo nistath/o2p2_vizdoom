@@ -10,6 +10,7 @@ from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
 import shutil
 from pathlib import Path
+from datetime import datetime
 
 from datasets import *
 from improc import *
@@ -28,7 +29,9 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if use_gpu else "cpu")
     print(f'Using device {device}.')
 
-    val_path = Path('/home/nistath/Desktop/val')
+    experiment_name = datetime.now().isoformat()
+    val_path = Path('/home/nistath/Desktop/val/').joinpath(experiment_name)
+    load_path = val_path.joinpath('load')
 
     img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run1/states.npz',
@@ -40,7 +43,13 @@ if __name__ == '__main__':
     use_stratification = True
     use_perceptual_loss = True
     reuse_split = False
-    reuse_weights = False
+    reuse_weights = False  # implies split will be reused
+    validate_autoencoder = True
+
+    if val_path.exists() and not reuse_weights:
+        raise ValueError('will not overwrite')
+    val_path.mkdir(exist_ok=True, parents=True)
+    load_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
 
@@ -58,12 +67,21 @@ if __name__ == '__main__':
             trn_idxs = torch.load('trn_idxs.pth')
             val_idxs = torch.load('val_idxs.pth')
         else:
-            all_idxs = dataset.get_all_idxs()
-            random.shuffle(all_idxs)
-            split_point = find_frame_boundary(all_idxs, int(split * len(all_idxs)))
-            trn_idxs = all_idxs[:split_point]
-            val_idxs = all_idxs[split_point:]
-            del all_idxs
+            if False:
+                all_idxs = dataset.get_all_idxs()
+                random.shuffle(all_idxs)
+                split_point = find_frame_boundary(all_idxs, int(split * len(all_idxs)))
+                trn_idxs = all_idxs[:split_point]
+                val_idxs = all_idxs[split_point:]
+                del all_idxs
+            else:
+                episode_keys = dataset.get_episode_keys()
+                trn_idxs = dataset.get_all_idxs(episode_keys[:-1])
+                val_idxs = dataset.get_all_idxs((episode_keys[-1],))
+
+        print('Train:', len(trn_idxs))
+        print('Validation:', len(val_idxs))
+        shutil.copytree('.', val_path.joinpath('src'))
 
         if use_stratification:
             trn_sampler = StratifiedRandomSampler(trn_idxs, idx_class)
@@ -118,52 +136,49 @@ if __name__ == '__main__':
             torch.save(trn_idxs, 'trn_idxs.pth')
             torch.save(val_idxs, 'val_idxs.pth')
     else:
-        model.load_state_dict(torch.load('model.pth'))
-        trn_idxs = torch.load('trn_idxs.pth')
-        val_idxs = torch.load('val_idxs.pth')
+        model.load_state_dict(torch.load(load_path.joinpath('model.pth')))
+        trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
+        val_idxs = torch.load(load_path.joinpath('val_idxs.pth'))
 
-    val_num = 4*batch_size if cheat else None
-    val_sampler = StratifiedRandomSampler(
-        trn_idxs if cheat else val_idxs, idx_class)
-    val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(val_num))
-    val_dataloader = DataLoader(
-        IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
+    if validate_autoencoder:
+        val_num = 4*batch_size if cheat else None
+        val_sampler = StratifiedRandomSampler(
+            trn_idxs if cheat else val_idxs, idx_class)
+        val_sampler = SequentialSampler(val_sampler.as_unshuffled_list(val_num))
+        val_dataloader = DataLoader(
+            IndexedDataset(dataset), batch_size=batch_size, num_workers=0, sampler=val_sampler)
 
-    if val_path.exists():
-        shutil.rmtree(val_path)
-    val_path.mkdir()
+        model = Inspect(enc, dec).to(device)
 
-    model = Inspect(enc, dec).to(device)
+        reps = []
+        labels = []
+        model.eval()
+        with torch.no_grad():
+            for i, (idx, (imgs, _)) in enumerate(tqdm(val_dataloader)):
+                imgs = imgs.to(device)
 
-    reps = []
-    labels = []
-    model.eval()
-    with torch.no_grad():
-        for i, (idx, (imgs, _)) in enumerate(tqdm(val_dataloader)):
-            imgs = imgs.to(device)
+                imgs_hat = model(imgs)
+                reps.append(model.last_rep.cpu().view(imgs.shape[0], -1).numpy())
+                labels.extend(idx_class(idx))
 
-            imgs_hat = model(imgs)
-            reps.append(model.last_rep.cpu().view(imgs.shape[0], -1).numpy())
-            labels.extend(idx_class(idx))
+                grid_img = make_grid(
+                    torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])
+                tensor2pil(grid_img).save(val_path.joinpath(f'{i}.png'))
 
-            grid_img = make_grid(
-                torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])
-            tensor2pil(grid_img).save(val_path.joinpath(f'{i}.png'))
+        # from tsnecuda import TSNE
+        from MulticoreTSNE import MulticoreTSNE as TSNE
+        from sklearn.decomposition import PCA
+        reps = np.vstack(reps)
+        reps = PCA(n_components=2, copy=False).fit_transform(reps)
+        # reps = TSNE(n_components=2, perplexity=30,
+        #             learning_rate=10, n_jobs=10).fit_transform(reps)
 
-    # from tsnecuda import TSNE
-    from MulticoreTSNE import MulticoreTSNE as TSNE
-    from sklearn.decomposition import PCA
-    reps = np.vstack(reps)
-    # reps = PCA(n_components=50, copy=False).fit_transform(reps)
-    reps = TSNE(n_components=2, perplexity=30,
-                learning_rate=10, n_jobs=10).fit_transform(reps)
+        for label in set(labels):
+            idxs = [i for i, x in enumerate(labels) if x == label]
+            plt.scatter(reps[idxs, 0], reps[idxs, 1], label=label, marker='.')
 
-    for label in set(labels):
-        idxs = [i for i, x in enumerate(labels) if x == label]
-        plt.scatter(reps[idxs, 0], reps[idxs, 1], label=label, marker='.')
-
-    plt.rc('font', family='serif')
-    plt.gca().get_xaxis().set_visible(False)
-    plt.gca().get_yaxis().set_visible(False)
-    plt.legend()
-    plt.savefig(val_path.joinpath('tsne.png'))
+        plt.rc('font', family='serif')
+        plt.gca().get_xaxis().set_visible(False)
+        plt.gca().get_yaxis().set_visible(False)
+        plt.legend()
+        plt.savefig(val_path.joinpath('tsne.png'))
