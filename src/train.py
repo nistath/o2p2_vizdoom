@@ -16,6 +16,7 @@ from datasets import *
 from improc import *
 from models.loss import masked_mse_loss
 from models.perception import *
+from models.prediction import *
 from models.inspect import Inspect
 from PerceptualSimilarity.models import PerceptualLoss
 
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     print(f'Using device {device}.')
 
     experiment_name = datetime.now().isoformat()
-    experiment_name += '_betterlinear_noperceptual'
+    experiment_name += '_medium_filtersok_preddict'
     results_path = Path('/home/nistath/Desktop/val/')
     val_path = results_path.joinpath(experiment_name)
     load_path = results_path.joinpath('2020-05-12T00:23:10.810421_perceptual/save')
@@ -50,17 +51,17 @@ if __name__ == '__main__':
 
     mask_mse_loss = True
     use_stratification = True
-    use_perceptual_loss = False
+    use_perceptual_loss = True
     reuse_split = True
-    reuse_autoencoder = False  # implies split will be reused
-    validate_autoencoder = True
+    reuse_autoencoder = True  # implies split will be reused
+    validate_autoencoder = False
 
     if reuse_autoencoder:
         if val_path.exists():
             raise ValueError('will not overwrite')
     else:
-        val_path.mkdir(exist_ok=True, parents=True)
         save_path.mkdir(exist_ok=True, parents=True)
+    val_path.mkdir(exist_ok=True, parents=True)
 
     cheat = False
 
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     # num_features = 256
     # enc = Perception((3,) + img_shape, num_features)
     # dec = InversePerception((3,) + img_shape, num_features)
-    enc, dec = ConvAutoencoder((3,) + img_shape, have_linear=True)
+    enc, dec = ConvAutoencoder((3,) + img_shape, have_linear=False)
     model = torch.nn.Sequential(enc, dec).to(device)
 
     if not reuse_autoencoder:
@@ -151,9 +152,8 @@ if __name__ == '__main__':
                 tqdm.write(f'Loss: {losses}')
 
         torch.save(model.state_dict(), save_path.joinpath('model.pth'))
-        if not reuse_split:
-            torch.save(trn_idxs, save_path.joinpath('trn_idxs.pth'))
-            torch.save(val_idxs, save_path.joinpath('val_idxs.pth'))
+        torch.save(trn_idxs, save_path.joinpath('trn_idxs.pth'))
+        torch.save(val_idxs, save_path.joinpath('val_idxs.pth'))
     else:
         model.load_state_dict(torch.load(load_path.joinpath('model.pth')))
         trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
@@ -205,7 +205,6 @@ if __name__ == '__main__':
         plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
 
     # Do prediction
+    predictor = EncoderPredictor(300, enc)
 
-    # Freeze encoder weights
-    for param in enc.parameters():
-        param.requires_grad = False
+

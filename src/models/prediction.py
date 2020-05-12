@@ -1,9 +1,9 @@
 import torch
 
 
-class Prediction(torch.nn.Module):
+class Predictor(torch.nn.Module):
     def __init__(self, feature_size):
-        super(Prediction, self).__init__()
+        super(Predictor, self).__init__()
         nn = torch.nn
 
         self.mlp = nn.Sequential(
@@ -16,5 +16,26 @@ class Prediction(torch.nn.Module):
         )
 
     def forward(self, x):
-        x = x.view(x.shape[0], x.shape[1], -1)
+        '''
+        To do batches, x.shape[0] = sum(len(objects) for objects in batch).
+        Flatten it.
+        '''
+        x = x.view(x.shape[0], -1)
         return self.mlp(x)
+
+
+class EncoderPredictor(torch.nn.Module):
+    def __init__(self, feature_size, enc):
+        super(EncoderPredictor, self).__init__()
+        self.predictor = Predictor(feature_size)
+
+        # Freeze encoder weights
+        for param in enc.parameters():
+            param.requires_grad = False
+        self.encoder = enc
+        self.encoder.eval()
+
+    def forward(self, x):
+        encoding = self.encoder(x)
+        prediction = self.predictor(encoding)
+        return prediction.view(x.shape[0], 1, 15, 20)
