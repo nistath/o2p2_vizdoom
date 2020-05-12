@@ -44,7 +44,8 @@ if __name__ == '__main__':
         '2020-05-12T13:22:17.994781_pls_work/save')
     save_path = val_path.joinpath('save')
 
-    predictor_path = results_path.joinpath('2020-05-12T13:55:26.403096_predict_pls_work/save/predictor.pth')
+    predictor_path = results_path.joinpath(
+        '2020-05-12T13:55:26.403096_predict_pls_work/save/predictor.pth')
 
     img_shape = (240, 320)
     dataset = DoomSegmentedDataset('/home/nistath/Desktop/run2/states.npz',
@@ -57,10 +58,10 @@ if __name__ == '__main__':
     use_perceptual_loss = True
     reuse_split = True
     reuse_autoencoder = True  # implies split will be reused
-    validate_autoencoder = False
+    validate_autoencoder = True
 
-    reuse_predictor = False
-    validate_predictor = True
+    reuse_predictor = True
+    validate_predictor = False
 
     if reuse_autoencoder:
         if val_path.exists():
@@ -208,8 +209,9 @@ if __name__ == '__main__':
         plt.rc('font', family='serif')
         plt.gca().get_xaxis().set_visible(False)
         plt.gca().get_yaxis().set_visible(False)
-        plt.legend()
-        plt.savefig(val_path.joinpath('tsne.png'), dpi=400)
+        plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+        plt.savefig(val_path.joinpath('tsne.png'), dpi=400,
+                    bbox_inches='tight', pad_inches=0)
 
     # Do prediction
     print('PREDICTION TIME BABY')
@@ -256,7 +258,8 @@ if __name__ == '__main__':
                 t_hat_imgs_hat = decoder.forward(t_hat_objs)
 
                 obj_loss = p_mse_loss(t_hat_objs, t_objs)
-                mask_loss = masked_mse_loss(t_hat_imgs_hat, t_imgs, t_masks, focus=focus)
+                mask_loss = masked_mse_loss(
+                    t_hat_imgs_hat, t_imgs, t_masks, focus=focus)
 
                 losses = (obj_loss.item(), mask_loss.item())
 
@@ -272,7 +275,8 @@ if __name__ == '__main__':
         predictor.load_state_dict(torch.load(predictor_path))
 
     if validate_predictor:
-        p_val_dataset = p_dataset if cheat else PredictionDataset(dataset, val_idxs)
+        p_val_dataset = p_dataset if cheat else PredictionDataset(
+            dataset, val_idxs)
         p_val_idxs = p_val_dataset.get_all_idxs()
 
         p_val_num = 4*p_batch_size if cheat else p_max_val_num
