@@ -43,12 +43,17 @@ def ConvAutoencoder(img_dim, have_linear=False):
     nn = torch.nn
 
     encoder_suffix = [Conv2dAuto(128, 1, 3, 2),]
+    decoder_prefix = []
     if have_linear:
         encoder_suffix[0] = BNorm(encoder_suffix[0])
         encoder_suffix += [
             View(-1, 300),
             nn.ReLU(inplace=True),
-            nn.Linear(300, 300),
+            nn.Linear(300, 128),
+        ]
+        decoder_prefix = [
+            nn.Linear(128, 300),
+            nn.ReLU(inplace=True),
             View(-1, 1, 15, 20),
         ]
 
@@ -65,13 +70,14 @@ def ConvAutoencoder(img_dim, have_linear=False):
     )
 
     decoder = nn.Sequential(
-        ConvTranspose2dAuto(1, 128, 5, 2),
+        *decoder_prefix,
+        ConvTranspose2dAuto(1, 256, 5, 2),
         nn.ReLU(inplace=True),
-        BNorm(ConvTranspose2dAuto(128, 64, 5, 2)),
+        BNorm(ConvTranspose2dAuto(256, 128, 5, 2)),
         nn.ReLU(inplace=True),
-        BNorm(ConvTranspose2dAuto(64, 32, 7, 2)),
+        BNorm(ConvTranspose2dAuto(128, 64, 7, 2)),
         nn.ReLU(inplace=True),
-        ConvTranspose2dAuto(32, img_dim[0], 5, 2),
+        ConvTranspose2dAuto(64, img_dim[0], 5, 2),
         nn.Sigmoid()
     )
 

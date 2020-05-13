@@ -57,9 +57,10 @@ if __name__ == '__main__':
     use_stratification = True
     use_perceptual_loss = True
     reuse_split = True
-    reuse_autoencoder = True  # implies split will be reused
+    reuse_autoencoder = False  # implies split will be reused
     validate_autoencoder = True
 
+    predict = False
     reuse_predictor = True
     validate_predictor = False
 
@@ -214,6 +215,9 @@ if __name__ == '__main__':
                     bbox_inches='tight', pad_inches=0)
 
     # Do prediction
+    if not predict:
+        exit()
+
     print('PREDICTION TIME BABY')
     predictor = Predictor(300).to(device)
     encoder = enc
