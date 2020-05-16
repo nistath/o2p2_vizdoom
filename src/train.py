@@ -28,10 +28,6 @@ def cutoff_idxs(idxs, max_len):
 
 
 if __name__ == '__main__':
-    # torch.manual_seed(6969)
-    # random.seed(6969)
-    # np.random.seed(6969)
-
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
     print(f'Using device {device}.')
@@ -60,6 +56,9 @@ if __name__ == '__main__':
     reuse_autoencoder = False  # implies split will be reused
     validate_autoencoder = True
 
+    use_convautoencoder = True
+    use_tsne = True
+
     predict = False
     reuse_predictor = True
     validate_predictor = False
@@ -70,6 +69,7 @@ if __name__ == '__main__':
     save_path.mkdir(exist_ok=True, parents=True)
     val_path.mkdir(exist_ok=True, parents=True)
 
+    # whether to predict on the train set
     cheat = False
 
     split = 0.5
@@ -80,10 +80,15 @@ if __name__ == '__main__':
     batch_size = 32
     p_batch_size = 32 // 4
 
-    # num_features = 256
-    # enc = Perception((3,) + img_shape, num_features)
-    # dec = InversePerception((3,) + img_shape, num_features)
-    enc, dec = ConvAutoencoder((3,) + img_shape, have_linear=False)
+    focus_annealing_schedule = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
+
+    if use_convautoencoder:
+        enc, dec = ConvAutoencoder((3,) + img_shape, have_linear=False)
+    else:
+        num_features = 256
+        enc = Perception((3,) + img_shape, num_features)
+        dec = InversePerception((3,) + img_shape, num_features)
+
     model = torch.nn.Sequential(enc, dec).to(device)
 
     if not reuse_autoencoder:
@@ -91,21 +96,12 @@ if __name__ == '__main__':
             trn_idxs = torch.load(load_path.joinpath('trn_idxs.pth'))
             val_idxs = torch.load(load_path.joinpath('val_idxs.pth'))
         else:
-            if False:
-                all_idxs = dataset.get_all_idxs()
-                random.shuffle(all_idxs)
-                split_point = find_frame_boundary(
-                    all_idxs, int(split * len(all_idxs)))
-                trn_idxs = all_idxs[:split_point]
-                val_idxs = all_idxs[split_point:]
-                del all_idxs
-            else:
-                episode_keys = shuffle(list(dataset.get_episode_keys()))
-                split_point = int(split * len(episode_keys))
-                trn_idxs = cutoff_idxs(dataset.get_all_idxs(
-                    shuffle(episode_keys[:split_point])), max_len_trn)
-                val_idxs = cutoff_idxs(dataset.get_all_idxs(
-                    shuffle(episode_keys[split_point:])), max_len_val)
+            episode_keys = shuffle(list(dataset.get_episode_keys()))
+            split_point = int(split * len(episode_keys))
+            trn_idxs = cutoff_idxs(dataset.get_all_idxs(
+                shuffle(episode_keys[:split_point])), max_len_trn)
+            val_idxs = cutoff_idxs(dataset.get_all_idxs(
+                shuffle(episode_keys[split_point:])), max_len_val)
 
         print('Train:', len(trn_idxs))
         print('Validation:', len(val_idxs))
@@ -127,14 +123,10 @@ if __name__ == '__main__':
         model.train()
         print('Starting training.')
 
-        foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
-        # foci = [0.5, 1]
-        # foci = [0.5, 1, 2, 5, 1, 0.7]
-        max_epoch = len(foci)
+        max_epoch = len(focus_annealing_schedule)
         model.train()
         for epoch in trange(max_epoch, desc='autoencoder'):
-            # focus = 1
-            focus = foci[epoch]
+            focus = focus_annealing_schedule[epoch]
             desc = f'focus={focus}'
             for imgs, masks in tqdm(trn_dataloader, desc=desc):
                 imgs = imgs.to(device)
@@ -195,13 +187,14 @@ if __name__ == '__main__':
                     torch.cat((imgs.cpu(), imgs_hat.cpu())), nrow=imgs.shape[0])
                 tensor2pil(grid_img).save(val_path.joinpath(f'{i}.png'))
 
-        # from tsnecuda import TSNE
-        from MulticoreTSNE import MulticoreTSNE as TSNE
-        from sklearn.decomposition import PCA
         reps = np.vstack(reps)
-        # reps = PCA(n_components=2, copy=False).fit_transform(reps)
-        reps = TSNE(n_components=2, perplexity=30,
-                    learning_rate=10, n_jobs=10).fit_transform(reps)
+        if use_tsne:
+            from MulticoreTSNE import MulticoreTSNE as TSNE
+            reps = TSNE(n_components=2, perplexity=30,
+                        learning_rate=10, n_jobs=10).fit_transform(reps)
+        else:
+            from sklearn.decomposition import PCA
+            reps = PCA(n_components=2, copy=False).fit_transform(reps)
 
         for label in set(labels):
             idxs = [i for i, x in enumerate(labels) if x == label]
@@ -243,10 +236,9 @@ if __name__ == '__main__':
         p_mse_loss = torch.nn.MSELoss()
         p_opt = torch.optim.Adam(predictor.parameters(), lr=1e-3)
 
-        foci = [0.1, 0.5, 1, 2, 5, 1, 1, 0.7]
-        p_max_epoch = len(foci)
+        p_max_epoch = len(focus_annealing_schedule)
         for epoch in trange(p_max_epoch, desc='pred'):
-            focus = foci[epoch]
+            focus = focus_annealing_schedule[epoch]
             desc = f'focus={focus}'
             for (s_imgs, s_masks), (t_imgs, t_masks) in tqdm(p_trn_dataloader, desc=desc):
                 t_masks = t_masks.to(device)

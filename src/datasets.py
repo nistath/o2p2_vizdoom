@@ -5,7 +5,6 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import math
-from functools import lru_cache
 from collections import defaultdict, Counter
 import random
 from copy import copy
@@ -110,17 +109,15 @@ class DoomSegmentationDataset(Dataset):
         episode, number = idx
         return Image.open(self.png_dir.joinpath(f'{episode}_{number}_{name}.png'))
 
-    # @lru_cache(maxsize=20)
     def __getitem__(self, idx):
         screen = self.screen_tf(self._get_pil_img(idx, 'screen'))
         segmap = self.segmap_tf(self._get_pil_img(idx, 'labels'))
 
         return screen, segmap
 
-    @lru_cache(maxsize=1)
     def get_all_idxs(self):
         idxs = [FrameIdx(p.name.split('_')[:2]) for p in self.png_dir.glob('*_screen.png')]
-        idx.sort()
+        idxs.sort()
         return idxs
 
 
